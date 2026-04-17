@@ -19,6 +19,9 @@ func Open(path string) (*sql.DB, error) {
 // Migrate applies all pending migrations from the given directory.
 func Migrate(db *sql.DB, dir string) error {
 	goose.SetLogger(goose.NopLogger())
+	if err := goose.SetDialect("sqlite3"); err != nil {
+		return err
+	}
 	slog.Debug("running migrations", "dir", dir)
-	return goose.Up(db, dir, goose.WithAllowMissing())
+	return goose.Up(db, dir)
 }
