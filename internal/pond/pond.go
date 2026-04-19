@@ -38,6 +38,11 @@ type FeedFetcher interface {
 	Fetch(url string) (Feed, error)
 }
 
+// Sources is the outgoing port for persisting feed sources.
+type Sources interface {
+	Save(Source) error
+}
+
 // Subscriber is the incoming port for subscribing to a feed.
 type Subscriber interface {
 	Subscribe(feedURL string) error
@@ -46,10 +51,11 @@ type Subscriber interface {
 // Pond is the application hexagon.
 type Pond struct {
 	fetcher FeedFetcher
+	sources Sources
 }
 
-func New(fetcher FeedFetcher) *Pond {
-	return &Pond{fetcher: fetcher}
+func New(fetcher FeedFetcher, sources Sources) *Pond {
+	return &Pond{fetcher: fetcher, sources: sources}
 }
 
 func (p *Pond) Subscribe(feedURL string) error {
@@ -57,8 +63,12 @@ func (p *Pond) Subscribe(feedURL string) error {
 	if err != nil {
 		return err
 	}
-	_, err = ParseMetadata(feed)
-	return err
+	meta, err := ParseMetadata(feed)
+	if err != nil {
+		return err
+	}
+	source := ExtractSource(meta)
+	return p.sources.Save(source)
 }
 
 type rssChannel struct {
