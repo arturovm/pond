@@ -1,5 +1,6 @@
 package pond
 
+import "errors"
 
 // Feed represents raw feed content fetched from a URL.
 type Feed struct {
@@ -55,6 +56,14 @@ type Subscriber interface {
 	Subscribe(userID, feedURL string) error
 }
 
+// ErrUsernameTaken is returned when a username already exists.
+var ErrUsernameTaken = errors.New("username taken")
+
+// Users is the outgoing port for checking user existence.
+type Users interface {
+	Exists(username string) (bool, error)
+}
+
 // AccountCreator is the incoming port for creating an account.
 type AccountCreator interface {
 	CreateAccount(username, password string) error
@@ -65,10 +74,22 @@ type Pond struct {
 	fetcher       FeedFetcher
 	sources       Sources
 	subscriptions Subscriptions
+	users         Users
 }
 
-func New(fetcher FeedFetcher, sources Sources, subscriptions Subscriptions) *Pond {
-	return &Pond{fetcher: fetcher, sources: sources, subscriptions: subscriptions}
+func New(fetcher FeedFetcher, sources Sources, subscriptions Subscriptions, users Users) *Pond {
+	return &Pond{fetcher: fetcher, sources: sources, subscriptions: subscriptions, users: users}
+}
+
+func (p *Pond) CreateAccount(username, password string) error {
+	exists, err := p.users.Exists(username)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return ErrUsernameTaken
+	}
+	return nil
 }
 
 func (p *Pond) Subscribe(userID, feedURL string) error {

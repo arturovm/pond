@@ -56,6 +56,7 @@ func main() {
 		fetcher.NewHTTPFetcher(),
 		sources.NewSQLite(db),
 		subscriptions.NewSQLite(db),
+		nil,
 	)
 
 	// start server

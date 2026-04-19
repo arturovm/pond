@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 
@@ -35,6 +36,10 @@ func (h *CreateAccountHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if err := h.accountCreator.CreateAccount(body.Username, body.Password); err != nil {
+		if errors.Is(err, pond.ErrUsernameTaken) {
+			http.Error(w, "username taken", http.StatusConflict)
+			return
+		}
 		h.logger.Error("create account failed", "error", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return

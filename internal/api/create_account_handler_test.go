@@ -36,6 +36,22 @@ func (e *errorAccountCreator) CreateAccount(username, password string) error {
 
 var _ pond.AccountCreator = (*errorAccountCreator)(nil)
 
+func TestCreateAccountHandler_UsernameTaken_Returns409(t *testing.T) {
+	ac := &errorAccountCreator{err: pond.ErrUsernameTaken}
+	handler := api.NewCreateAccountHandler(ac, slog.Default())
+
+	body := strings.NewReader(`{"username":"alice","password":"secret"}`)
+	req := httptest.NewRequest(http.MethodPost, "/accounts", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusConflict {
+		t.Errorf("expected status %d, got %d", http.StatusConflict, rec.Code)
+	}
+}
+
 func TestCreateAccountHandler_PortError_LogsAndReturns500(t *testing.T) {
 	ac := &errorAccountCreator{err: errors.New("db failed")}
 	var buf bytes.Buffer

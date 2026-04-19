@@ -50,7 +50,7 @@ func TestPond_Subscribe_SavesSubscriptionInSubscriptions(t *testing.T) {
 	fetcher := &mockFeedFetcher{feed: validFeed}
 	sources := &mockSources{}
 	subscriptions := &mockSubscriptions{}
-	p := pond.New(fetcher, sources, subscriptions)
+	p := pond.New(fetcher, sources, subscriptions, nil)
 
 	err := p.Subscribe("user1", "https://example.com/feed.rss")
 
@@ -69,7 +69,7 @@ func TestPond_Subscribe_SavesSubscriptionInSubscriptions(t *testing.T) {
 func TestPond_Subscribe_SavesSourceInSources(t *testing.T) {
 	fetcher := &mockFeedFetcher{feed: validFeed}
 	sources := &mockSources{}
-	p := pond.New(fetcher, sources, &mockSubscriptions{})
+	p := pond.New(fetcher, sources, &mockSubscriptions{}, nil)
 
 	err := p.Subscribe("user1", "https://example.com/feed.rss")
 
@@ -85,7 +85,7 @@ func TestPond_Subscribe_SavesSourceInSources(t *testing.T) {
 func TestPond_Subscribe_CallsFeedFetcherWithURL(t *testing.T) {
 	fetcher := &mockFeedFetcher{feed: validFeed}
 	sources := &mockSources{}
-	p := pond.New(fetcher, sources, &mockSubscriptions{})
+	p := pond.New(fetcher, sources, &mockSubscriptions{}, nil)
 
 	err := p.Subscribe("user1", "https://example.com/feed.rss")
 
@@ -101,7 +101,7 @@ func TestPond_Subscribe_ReturnsSourcesError(t *testing.T) {
 	saveErr := errors.New("save failed")
 	fetcher := &mockFeedFetcher{feed: validFeed}
 	sources := &mockSources{err: saveErr}
-	p := pond.New(fetcher, sources, &mockSubscriptions{})
+	p := pond.New(fetcher, sources, &mockSubscriptions{}, nil)
 
 	err := p.Subscribe("user1", "https://example.com/feed.rss")
 
@@ -113,7 +113,7 @@ func TestPond_Subscribe_ReturnsSourcesError(t *testing.T) {
 func TestPond_Subscribe_ReturnsFeedFetcherError(t *testing.T) {
 	fetchErr := errors.New("fetch failed")
 	fetcher := &mockFeedFetcher{err: fetchErr}
-	p := pond.New(fetcher, &mockSources{}, &mockSubscriptions{})
+	p := pond.New(fetcher, &mockSources{}, &mockSubscriptions{}, nil)
 
 	err := p.Subscribe("user1", "https://example.com/feed.rss")
 
@@ -126,7 +126,7 @@ func TestPond_Subscribe_ReturnsSubscriptionsError(t *testing.T) {
 	saveErr := errors.New("subscriptions save failed")
 	fetcher := &mockFeedFetcher{feed: validFeed}
 	subscriptions := &mockSubscriptions{err: saveErr}
-	p := pond.New(fetcher, &mockSources{}, subscriptions)
+	p := pond.New(fetcher, &mockSources{}, subscriptions, nil)
 
 	err := p.Subscribe("user1", "https://example.com/feed.rss")
 
@@ -137,11 +137,56 @@ func TestPond_Subscribe_ReturnsSubscriptionsError(t *testing.T) {
 
 func TestPond_Subscribe_ReturnsParseError(t *testing.T) {
 	fetcher := &mockFeedFetcher{feed: pond.Feed{Body: []byte("not xml")}}
-	p := pond.New(fetcher, &mockSources{}, &mockSubscriptions{})
+	p := pond.New(fetcher, &mockSources{}, &mockSubscriptions{}, nil)
 
 	err := p.Subscribe("user1", "https://example.com/feed.rss")
 
 	if err == nil {
 		t.Error("expected a parse error, got nil")
+	}
+}
+
+type mockUsers struct {
+	exists bool
+	err    error
+}
+
+func (m *mockUsers) Exists(username string) (bool, error) {
+	return m.exists, m.err
+}
+
+var _ pond.Users = (*mockUsers)(nil)
+
+func TestPond_CreateAccount_ExistingUsername_ReturnsErrUsernameTaken(t *testing.T) {
+	users := &mockUsers{exists: true}
+	p := pond.New(nil, nil, nil, users)
+
+	err := p.CreateAccount("alice", "secret")
+
+	if !errors.Is(err, pond.ErrUsernameTaken) {
+		t.Errorf("expected ErrUsernameTaken, got %v", err)
+	}
+}
+
+func TestPond_CreateAccount_UsersPortError_ReturnsError(t *testing.T) {
+	portErr := errors.New("db failed")
+	users := &mockUsers{err: portErr}
+	p := pond.New(nil, nil, nil, users)
+
+	err := p.CreateAccount("alice", "secret")
+
+	if !errors.Is(err, portErr) {
+		t.Errorf("expected %v, got %v", portErr, err)
+	}
+}
+
+func TestPond_CreateAccount_NewUsername_DoesNotReturnError(t *testing.T) {
+	users := &mockUsers{exists: false}
+	p := pond.New(nil, nil, nil, users)
+
+	err := p.CreateAccount("alice", "secret")
+
+	if err != nil {
+		t.Errorf("expected no error, got %v", err)
 	}
 }
