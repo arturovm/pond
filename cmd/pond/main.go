@@ -46,9 +46,7 @@ func main() {
 	defer db.Close()
 
 	// run migrations
-	migrationsDir := conf.MigrationsDir()
-	slog.Debug("running migrations", "path", migrationsDir)
-	if err := database.Migrate(db, migrationsDir); err != nil {
+	if err := database.Migrate(db); err != nil {
 		slog.Error("failed to run migrations", "error", err)
 		os.Exit(1)
 	}
