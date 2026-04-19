@@ -24,6 +24,12 @@ type Source struct {
 	Description string
 }
 
+// Subscription represents a user's subscription to a Source.
+type Subscription struct {
+	UserID string
+	Source Source
+}
+
 // ExtractSource builds a Source from feed Metadata.
 func ExtractSource(meta Metadata) Source {
 	return Source{
@@ -43,22 +49,28 @@ type Sources interface {
 	Save(Source) error
 }
 
+// Subscriptions is the outgoing port for persisting subscriptions.
+type Subscriptions interface {
+	Save(Subscription) error
+}
+
 // Subscriber is the incoming port for subscribing to a feed.
 type Subscriber interface {
-	Subscribe(feedURL string) error
+	Subscribe(userID, feedURL string) error
 }
 
 // Pond is the application hexagon.
 type Pond struct {
-	fetcher FeedFetcher
-	sources Sources
+	fetcher       FeedFetcher
+	sources       Sources
+	subscriptions Subscriptions
 }
 
-func New(fetcher FeedFetcher, sources Sources) *Pond {
-	return &Pond{fetcher: fetcher, sources: sources}
+func New(fetcher FeedFetcher, sources Sources, subscriptions Subscriptions) *Pond {
+	return &Pond{fetcher: fetcher, sources: sources, subscriptions: subscriptions}
 }
 
-func (p *Pond) Subscribe(feedURL string) error {
+func (p *Pond) Subscribe(userID, feedURL string) error {
 	feed, err := p.fetcher.Fetch(feedURL)
 	if err != nil {
 		return err
@@ -68,7 +80,10 @@ func (p *Pond) Subscribe(feedURL string) error {
 		return err
 	}
 	source := ExtractSource(meta)
-	return p.sources.Save(source)
+	if err := p.sources.Save(source); err != nil {
+		return err
+	}
+	return p.subscriptions.Save(Subscription{UserID: userID, Source: source})
 }
 
 type rssChannel struct {

@@ -14,7 +14,7 @@ type mockSubscriber struct {
 	calledWith string
 }
 
-func (m *mockSubscriber) Subscribe(feedURL string) error {
+func (m *mockSubscriber) Subscribe(userID, feedURL string) error {
 	m.calledWith = feedURL
 	return nil
 }

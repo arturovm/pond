@@ -32,7 +32,7 @@ func (h *SubscribeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
-	if err := h.subscriber.Subscribe(body.URL); err != nil {
+	if err := h.subscriber.Subscribe("", body.URL); err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
