@@ -9,18 +9,21 @@ import (
 
 type mockFeedFetcher struct {
 	calledWith string
+	feed       pond.Feed
 	err        error
 }
 
 func (m *mockFeedFetcher) Fetch(url string) (pond.Feed, error) {
 	m.calledWith = url
-	return pond.Feed{}, m.err
+	return m.feed, m.err
 }
 
 var _ pond.FeedFetcher = (*mockFeedFetcher)(nil)
 
+var validFeed = pond.Feed{Body: []byte(`<rss version="2.0"><channel><title>T</title><link>https://example.com</link><description>D</description></channel></rss>`)}
+
 func TestPond_Subscribe_CallsFeedFetcherWithURL(t *testing.T) {
-	fetcher := &mockFeedFetcher{}
+	fetcher := &mockFeedFetcher{feed: validFeed}
 	p := pond.New(fetcher)
 
 	err := p.Subscribe("https://example.com/feed.rss")
@@ -42,5 +45,16 @@ func TestPond_Subscribe_ReturnsFeedFetcherError(t *testing.T) {
 
 	if !errors.Is(err, fetchErr) {
 		t.Errorf("expected error %v, got %v", fetchErr, err)
+	}
+}
+
+func TestPond_Subscribe_ReturnsParseError(t *testing.T) {
+	fetcher := &mockFeedFetcher{feed: pond.Feed{Body: []byte("not xml")}}
+	p := pond.New(fetcher)
+
+	err := p.Subscribe("https://example.com/feed.rss")
+
+	if err == nil {
+		t.Error("expected a parse error, got nil")
 	}
 }
