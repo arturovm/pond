@@ -55,6 +55,11 @@ type Subscriber interface {
 	Subscribe(userID, feedURL string) error
 }
 
+// AccountCreator is the incoming port for creating an account.
+type AccountCreator interface {
+	CreateAccount(username, password string) error
+}
+
 // Pond is the application hexagon.
 type Pond struct {
 	fetcher       FeedFetcher
