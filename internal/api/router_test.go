@@ -1,6 +1,7 @@
 package api_test
 
 import (
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -11,7 +12,7 @@ import (
 
 func TestRouter_GETSubscriptions_Returns405(t *testing.T) {
 	mock := &mockSubscriber{}
-	router := api.NewRouter(mock)
+	router := api.NewRouter(mock, slog.Default())
 
 	req := httptest.NewRequest(http.MethodGet, "/subscriptions", nil)
 	rec := httptest.NewRecorder()
@@ -25,7 +26,7 @@ func TestRouter_GETSubscriptions_Returns405(t *testing.T) {
 
 func TestRouter_POSTSubscriptions_RoutesToSubscribeHandler(t *testing.T) {
 	mock := &mockSubscriber{}
-	router := api.NewRouter(mock)
+	router := api.NewRouter(mock, slog.Default())
 
 	body := strings.NewReader(`{"url":"https://example.com/feed.rss"}`)
 	req := httptest.NewRequest(http.MethodPost, "/subscriptions", body)

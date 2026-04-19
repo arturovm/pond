@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/url"
 
@@ -10,10 +11,11 @@ import (
 
 type SubscribeHandler struct {
 	subscriber pond.Subscriber
+	logger     *slog.Logger
 }
 
-func NewSubscribeHandler(s pond.Subscriber) *SubscribeHandler {
-	return &SubscribeHandler{subscriber: s}
+func NewSubscribeHandler(s pond.Subscriber, logger *slog.Logger) *SubscribeHandler {
+	return &SubscribeHandler{subscriber: s, logger: logger}
 }
 
 func (h *SubscribeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -33,6 +35,7 @@ func (h *SubscribeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.subscriber.Subscribe("", body.URL); err != nil {
+		h.logger.Error("subscribe failed", "error", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}

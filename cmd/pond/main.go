@@ -63,7 +63,7 @@ func main() {
 	// start server
 	addr := net.JoinHostPort(conf.Addr, fmt.Sprintf("%d", conf.Port))
 	slog.Info("server starting", "addr", addr)
-	if err := http.ListenAndServe(addr, api.NewRouter(app)); err != nil {
+	if err := http.ListenAndServe(addr, api.NewRouter(app, slog.Default())); err != nil {
 		slog.Error("server error", "error", err)
 		os.Exit(1)
 	}

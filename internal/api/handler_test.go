@@ -1,6 +1,9 @@
 package api_test
 
 import (
+	"bytes"
+	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -21,9 +24,19 @@ func (m *mockSubscriber) Subscribe(userID, feedURL string) error {
 
 var _ pond.Subscriber = (*mockSubscriber)(nil)
 
+type errorSubscriber struct {
+	err error
+}
+
+func (e *errorSubscriber) Subscribe(userID, feedURL string) error {
+	return e.err
+}
+
+var _ pond.Subscriber = (*errorSubscriber)(nil)
+
 func TestSubscribeHandler_MalformedJSON_ReturnsBadRequest(t *testing.T) {
 	mock := &mockSubscriber{}
-	handler := api.NewSubscribeHandler(mock)
+	handler := api.NewSubscribeHandler(mock, slog.Default())
 
 	body := strings.NewReader(`not json`)
 	req := httptest.NewRequest(http.MethodPost, "/subscriptions", body)
@@ -39,7 +52,7 @@ func TestSubscribeHandler_MalformedJSON_ReturnsBadRequest(t *testing.T) {
 
 func TestSubscribeHandler_EmptyURL_ReturnsBadRequest(t *testing.T) {
 	mock := &mockSubscriber{}
-	handler := api.NewSubscribeHandler(mock)
+	handler := api.NewSubscribeHandler(mock, slog.Default())
 
 	body := strings.NewReader(`{"url":""}`)
 	req := httptest.NewRequest(http.MethodPost, "/subscriptions", body)
@@ -58,7 +71,7 @@ func TestSubscribeHandler_EmptyURL_ReturnsBadRequest(t *testing.T) {
 
 func TestSubscribeHandler_MalformedURL_ReturnsBadRequest(t *testing.T) {
 	mock := &mockSubscriber{}
-	handler := api.NewSubscribeHandler(mock)
+	handler := api.NewSubscribeHandler(mock, slog.Default())
 
 	body := strings.NewReader(`{"url":"not a url"}`)
 	req := httptest.NewRequest(http.MethodPost, "/subscriptions", body)
@@ -75,9 +88,27 @@ func TestSubscribeHandler_MalformedURL_ReturnsBadRequest(t *testing.T) {
 	}
 }
 
+func TestSubscribeHandler_SubscribeError_LogsError(t *testing.T) {
+	sub := &errorSubscriber{err: errors.New("fetch failed")}
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buf, nil))
+	handler := api.NewSubscribeHandler(sub, logger)
+
+	body := strings.NewReader(`{"url":"https://example.com/feed.rss"}`)
+	req := httptest.NewRequest(http.MethodPost, "/subscriptions", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if !strings.Contains(buf.String(), "fetch failed") {
+		t.Errorf("expected log to contain error message, got: %s", buf.String())
+	}
+}
+
 func TestSubscribeHandler_ValidURL_ForwardsToPort(t *testing.T) {
 	mock := &mockSubscriber{}
-	handler := api.NewSubscribeHandler(mock)
+	handler := api.NewSubscribeHandler(mock, slog.Default())
 
 	body := strings.NewReader(`{"url":"https://example.com/feed.rss"}`)
 	req := httptest.NewRequest(http.MethodPost, "/subscriptions", body)
