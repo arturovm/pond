@@ -18,10 +18,10 @@ type mockAccountCreator struct {
 	calledWithPassword string
 }
 
-func (m *mockAccountCreator) CreateAccount(username, password string) error {
+func (m *mockAccountCreator) CreateAccount(username, password string) (string, error) {
 	m.calledWithUsername = username
 	m.calledWithPassword = password
-	return nil
+	return "", nil
 }
 
 var _ pond.AccountCreator = (*mockAccountCreator)(nil)
@@ -30,8 +30,8 @@ type errorAccountCreator struct {
 	err error
 }
 
-func (e *errorAccountCreator) CreateAccount(username, password string) error {
-	return e.err
+func (e *errorAccountCreator) CreateAccount(username, password string) (string, error) {
+	return "", e.err
 }
 
 var _ pond.AccountCreator = (*errorAccountCreator)(nil)

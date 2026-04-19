@@ -2,6 +2,7 @@ package pond
 
 import (
 	"crypto/rand"
+	"encoding/hex"
 	"errors"
 
 	"github.com/google/uuid"
@@ -90,7 +91,7 @@ type Credentials interface {
 
 // AccountCreator is the incoming port for creating an account.
 type AccountCreator interface {
-	CreateAccount(username, password string) error
+	CreateAccount(username, password string) (string, error)
 }
 
 // Pond is the application hexagon.
@@ -106,27 +107,34 @@ func New(fetcher FeedFetcher, sources Sources, subscriptions Subscriptions, user
 	return &Pond{fetcher: fetcher, sources: sources, subscriptions: subscriptions, users: users, credentials: credentials}
 }
 
-func (p *Pond) CreateAccount(username, password string) error {
+func (p *Pond) CreateAccount(username, password string) (string, error) {
 	exists, err := p.users.Exists(username)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if exists {
-		return ErrUsernameTaken
+		return "", ErrUsernameTaken
 	}
 	id, err := uuid.NewV7()
 	if err != nil {
-		return err
+		return "", err
 	}
 	if err := p.users.Save(User{ID: id.String(), Username: username}); err != nil {
-		return err
+		return "", err
 	}
 	salt := make([]byte, 16)
 	if _, err := rand.Read(salt); err != nil {
-		return err
+		return "", err
 	}
 	hash := HashPassword(password, salt)
-	return p.credentials.Save(Credential{UserID: id.String(), Hash: hash, Salt: salt})
+	if err := p.credentials.Save(Credential{UserID: id.String(), Hash: hash, Salt: salt}); err != nil {
+		return "", err
+	}
+	tokenBytes := make([]byte, 16)
+	if _, err := rand.Read(tokenBytes); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(tokenBytes), nil
 }
 
 func (p *Pond) Subscribe(userID, feedURL string) error {

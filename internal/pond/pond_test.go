@@ -180,7 +180,7 @@ func TestPond_CreateAccount_ExistingUsername_ReturnsErrUsernameTaken(t *testing.
 	users := &mockUsers{exists: true}
 	p := pond.New(nil, nil, nil, users, nil)
 
-	err := p.CreateAccount("alice", "secret")
+	_, err := p.CreateAccount("alice", "secret")
 
 	if !errors.Is(err, pond.ErrUsernameTaken) {
 		t.Errorf("expected ErrUsernameTaken, got %v", err)
@@ -192,7 +192,7 @@ func TestPond_CreateAccount_UsersPortError_ReturnsError(t *testing.T) {
 	users := &mockUsers{err: portErr}
 	p := pond.New(nil, nil, nil, users, nil)
 
-	err := p.CreateAccount("alice", "secret")
+	_, err := p.CreateAccount("alice", "secret")
 
 	if !errors.Is(err, portErr) {
 		t.Errorf("expected %v, got %v", portErr, err)
@@ -203,7 +203,7 @@ func TestPond_CreateAccount_NewUsername_SavesUserInUsers(t *testing.T) {
 	users := &mockUsers{exists: false}
 	p := pond.New(nil, nil, nil, users, &mockCredentials{})
 
-	err := p.CreateAccount("alice", "secret")
+	_, err := p.CreateAccount("alice", "secret")
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -221,7 +221,7 @@ func TestPond_CreateAccount_SaveError_ReturnsError(t *testing.T) {
 	users := &mockUsers{exists: false, saveErr: saveErr}
 	p := pond.New(nil, nil, nil, users, nil)
 
-	err := p.CreateAccount("alice", "secret")
+	_, err := p.CreateAccount("alice", "secret")
 
 	if !errors.Is(err, saveErr) {
 		t.Errorf("expected %v, got %v", saveErr, err)
@@ -233,7 +233,7 @@ func TestPond_CreateAccount_NewUsername_DoesNotReturnError(t *testing.T) {
 	credentials := &mockCredentials{}
 	p := pond.New(nil, nil, nil, users, credentials)
 
-	err := p.CreateAccount("alice", "secret")
+	_, err := p.CreateAccount("alice", "secret")
 
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
@@ -246,7 +246,7 @@ func TestPond_CreateAccount_CredentialsPortError_ReturnsError(t *testing.T) {
 	credentials := &mockCredentials{saveErr: credErr}
 	p := pond.New(nil, nil, nil, users, credentials)
 
-	err := p.CreateAccount("alice", "secret")
+	_, err := p.CreateAccount("alice", "secret")
 
 	if !errors.Is(err, credErr) {
 		t.Errorf("expected %v, got %v", credErr, err)
@@ -258,7 +258,7 @@ func TestPond_CreateAccount_SavesCredentialWithNonEmptyHashAndSalt(t *testing.T)
 	credentials := &mockCredentials{}
 	p := pond.New(nil, nil, nil, users, credentials)
 
-	err := p.CreateAccount("alice", "secret")
+	_, err := p.CreateAccount("alice", "secret")
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -276,12 +276,58 @@ func TestPond_CreateAccount_SavesCredentialWithMatchingUserID(t *testing.T) {
 	credentials := &mockCredentials{}
 	p := pond.New(nil, nil, nil, users, credentials)
 
-	err := p.CreateAccount("alice", "secret")
+	_, err := p.CreateAccount("alice", "secret")
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if credentials.saved.UserID != users.saved.ID {
 		t.Errorf("expected credential UserID %q to match saved user ID %q", credentials.saved.UserID, users.saved.ID)
+	}
+}
+
+func TestPond_CreateAccount_TwoCallsProduceDifferentSessionTokens(t *testing.T) {
+	p := pond.New(nil, nil, nil, &mockUsers{exists: false}, &mockCredentials{})
+
+	token1, err := p.CreateAccount("alice", "secret1")
+	if err != nil {
+		t.Fatalf("unexpected error on first call: %v", err)
+	}
+	token2, err := p.CreateAccount("bob", "secret2")
+	if err != nil {
+		t.Fatalf("unexpected error on second call: %v", err)
+	}
+	if token1 == token2 {
+		t.Error("expected two calls to produce different session tokens")
+	}
+}
+
+func TestPond_CreateAccount_SessionTokenIsAtLeast32Characters(t *testing.T) {
+	users := &mockUsers{exists: false}
+	credentials := &mockCredentials{}
+	p := pond.New(nil, nil, nil, users, credentials)
+
+	token, err := p.CreateAccount("alice", "secret")
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(token) < 32 {
+		t.Errorf("expected token length >= 32, got %d", len(token))
+	}
+}
+
+func TestPond_CreateAccount_ReturnsNonEmptySessionToken(t *testing.T) {
+	users := &mockUsers{exists: false}
+	credentials := &mockCredentials{}
+	p := pond.New(nil, nil, nil, users, credentials)
+
+	token, err := p.CreateAccount("alice", "secret")
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if token == "" {
+		t.Error("expected non-empty session token")
 	}
 }
