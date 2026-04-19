@@ -7,8 +7,13 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/arturovm/pond/internal/api"
 	"github.com/arturovm/pond/internal/conf"
 	"github.com/arturovm/pond/internal/database"
+	"github.com/arturovm/pond/internal/fetcher"
+	"github.com/arturovm/pond/internal/pond"
+	"github.com/arturovm/pond/internal/sources"
+	"github.com/arturovm/pond/internal/subscriptions"
 )
 
 func main() {
@@ -48,12 +53,17 @@ func main() {
 		os.Exit(1)
 	}
 
-	// start server
-	mux := http.NewServeMux()
+	// wire adapters and domain
+	app := pond.New(
+		fetcher.NewHTTPFetcher(),
+		sources.NewSQLite(db),
+		subscriptions.NewSQLite(db),
+	)
 
+	// start server
 	addr := net.JoinHostPort(conf.Addr, fmt.Sprintf("%d", conf.Port))
 	slog.Info("server starting", "addr", addr)
-	if err := http.ListenAndServe(addr, mux); err != nil {
+	if err := http.ListenAndServe(addr, api.NewRouter(app)); err != nil {
 		slog.Error("server error", "error", err)
 		os.Exit(1)
 	}
