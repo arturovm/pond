@@ -50,7 +50,7 @@ func TestPond_Subscribe_SavesSubscriptionInSubscriptions(t *testing.T) {
 	fetcher := &mockFeedFetcher{feed: validFeed}
 	sources := &mockSources{}
 	subscriptions := &mockSubscriptions{}
-	p := pond.New(fetcher, sources, subscriptions, nil)
+	p := pond.New(fetcher, sources, subscriptions, nil, nil)
 
 	err := p.Subscribe("user1", "https://example.com/feed.rss")
 
@@ -69,7 +69,7 @@ func TestPond_Subscribe_SavesSubscriptionInSubscriptions(t *testing.T) {
 func TestPond_Subscribe_SavesSourceInSources(t *testing.T) {
 	fetcher := &mockFeedFetcher{feed: validFeed}
 	sources := &mockSources{}
-	p := pond.New(fetcher, sources, &mockSubscriptions{}, nil)
+	p := pond.New(fetcher, sources, &mockSubscriptions{}, nil, nil)
 
 	err := p.Subscribe("user1", "https://example.com/feed.rss")
 
@@ -85,7 +85,7 @@ func TestPond_Subscribe_SavesSourceInSources(t *testing.T) {
 func TestPond_Subscribe_CallsFeedFetcherWithURL(t *testing.T) {
 	fetcher := &mockFeedFetcher{feed: validFeed}
 	sources := &mockSources{}
-	p := pond.New(fetcher, sources, &mockSubscriptions{}, nil)
+	p := pond.New(fetcher, sources, &mockSubscriptions{}, nil, nil)
 
 	err := p.Subscribe("user1", "https://example.com/feed.rss")
 
@@ -101,7 +101,7 @@ func TestPond_Subscribe_ReturnsSourcesError(t *testing.T) {
 	saveErr := errors.New("save failed")
 	fetcher := &mockFeedFetcher{feed: validFeed}
 	sources := &mockSources{err: saveErr}
-	p := pond.New(fetcher, sources, &mockSubscriptions{}, nil)
+	p := pond.New(fetcher, sources, &mockSubscriptions{}, nil, nil)
 
 	err := p.Subscribe("user1", "https://example.com/feed.rss")
 
@@ -113,7 +113,7 @@ func TestPond_Subscribe_ReturnsSourcesError(t *testing.T) {
 func TestPond_Subscribe_ReturnsFeedFetcherError(t *testing.T) {
 	fetchErr := errors.New("fetch failed")
 	fetcher := &mockFeedFetcher{err: fetchErr}
-	p := pond.New(fetcher, &mockSources{}, &mockSubscriptions{}, nil)
+	p := pond.New(fetcher, &mockSources{}, &mockSubscriptions{}, nil, nil)
 
 	err := p.Subscribe("user1", "https://example.com/feed.rss")
 
@@ -126,7 +126,7 @@ func TestPond_Subscribe_ReturnsSubscriptionsError(t *testing.T) {
 	saveErr := errors.New("subscriptions save failed")
 	fetcher := &mockFeedFetcher{feed: validFeed}
 	subscriptions := &mockSubscriptions{err: saveErr}
-	p := pond.New(fetcher, &mockSources{}, subscriptions, nil)
+	p := pond.New(fetcher, &mockSources{}, subscriptions, nil, nil)
 
 	err := p.Subscribe("user1", "https://example.com/feed.rss")
 
@@ -137,7 +137,7 @@ func TestPond_Subscribe_ReturnsSubscriptionsError(t *testing.T) {
 
 func TestPond_Subscribe_ReturnsParseError(t *testing.T) {
 	fetcher := &mockFeedFetcher{feed: pond.Feed{Body: []byte("not xml")}}
-	p := pond.New(fetcher, &mockSources{}, &mockSubscriptions{}, nil)
+	p := pond.New(fetcher, &mockSources{}, &mockSubscriptions{}, nil, nil)
 
 	err := p.Subscribe("user1", "https://example.com/feed.rss")
 
@@ -164,9 +164,21 @@ func (m *mockUsers) Save(u pond.User) error {
 
 var _ pond.Users = (*mockUsers)(nil)
 
+type mockCredentials struct {
+	saved   pond.Credential
+	saveErr error
+}
+
+func (m *mockCredentials) Save(c pond.Credential) error {
+	m.saved = c
+	return m.saveErr
+}
+
+var _ pond.Credentials = (*mockCredentials)(nil)
+
 func TestPond_CreateAccount_ExistingUsername_ReturnsErrUsernameTaken(t *testing.T) {
 	users := &mockUsers{exists: true}
-	p := pond.New(nil, nil, nil, users)
+	p := pond.New(nil, nil, nil, users, nil)
 
 	err := p.CreateAccount("alice", "secret")
 
@@ -178,7 +190,7 @@ func TestPond_CreateAccount_ExistingUsername_ReturnsErrUsernameTaken(t *testing.
 func TestPond_CreateAccount_UsersPortError_ReturnsError(t *testing.T) {
 	portErr := errors.New("db failed")
 	users := &mockUsers{err: portErr}
-	p := pond.New(nil, nil, nil, users)
+	p := pond.New(nil, nil, nil, users, nil)
 
 	err := p.CreateAccount("alice", "secret")
 
@@ -189,7 +201,7 @@ func TestPond_CreateAccount_UsersPortError_ReturnsError(t *testing.T) {
 
 func TestPond_CreateAccount_NewUsername_SavesUserInUsers(t *testing.T) {
 	users := &mockUsers{exists: false}
-	p := pond.New(nil, nil, nil, users)
+	p := pond.New(nil, nil, nil, users, &mockCredentials{})
 
 	err := p.CreateAccount("alice", "secret")
 
@@ -207,7 +219,7 @@ func TestPond_CreateAccount_NewUsername_SavesUserInUsers(t *testing.T) {
 func TestPond_CreateAccount_SaveError_ReturnsError(t *testing.T) {
 	saveErr := errors.New("save failed")
 	users := &mockUsers{exists: false, saveErr: saveErr}
-	p := pond.New(nil, nil, nil, users)
+	p := pond.New(nil, nil, nil, users, nil)
 
 	err := p.CreateAccount("alice", "secret")
 
@@ -218,11 +230,58 @@ func TestPond_CreateAccount_SaveError_ReturnsError(t *testing.T) {
 
 func TestPond_CreateAccount_NewUsername_DoesNotReturnError(t *testing.T) {
 	users := &mockUsers{exists: false}
-	p := pond.New(nil, nil, nil, users)
+	credentials := &mockCredentials{}
+	p := pond.New(nil, nil, nil, users, credentials)
 
 	err := p.CreateAccount("alice", "secret")
 
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
+	}
+}
+
+func TestPond_CreateAccount_CredentialsPortError_ReturnsError(t *testing.T) {
+	credErr := errors.New("credentials save failed")
+	users := &mockUsers{exists: false}
+	credentials := &mockCredentials{saveErr: credErr}
+	p := pond.New(nil, nil, nil, users, credentials)
+
+	err := p.CreateAccount("alice", "secret")
+
+	if !errors.Is(err, credErr) {
+		t.Errorf("expected %v, got %v", credErr, err)
+	}
+}
+
+func TestPond_CreateAccount_SavesCredentialWithNonEmptyHashAndSalt(t *testing.T) {
+	users := &mockUsers{exists: false}
+	credentials := &mockCredentials{}
+	p := pond.New(nil, nil, nil, users, credentials)
+
+	err := p.CreateAccount("alice", "secret")
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(credentials.saved.Hash) == 0 {
+		t.Error("expected non-empty Hash in saved credential")
+	}
+	if len(credentials.saved.Salt) == 0 {
+		t.Error("expected non-empty Salt in saved credential")
+	}
+}
+
+func TestPond_CreateAccount_SavesCredentialWithMatchingUserID(t *testing.T) {
+	users := &mockUsers{exists: false}
+	credentials := &mockCredentials{}
+	p := pond.New(nil, nil, nil, users, credentials)
+
+	err := p.CreateAccount("alice", "secret")
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if credentials.saved.UserID != users.saved.ID {
+		t.Errorf("expected credential UserID %q to match saved user ID %q", credentials.saved.UserID, users.saved.ID)
 	}
 }

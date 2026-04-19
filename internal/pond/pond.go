@@ -1,6 +1,7 @@
 package pond
 
 import (
+	"crypto/rand"
 	"errors"
 
 	"github.com/google/uuid"
@@ -75,6 +76,18 @@ type Users interface {
 	Save(User) error
 }
 
+// Credential holds the hashed password material for a user.
+type Credential struct {
+	UserID string
+	Hash   []byte
+	Salt   []byte
+}
+
+// Credentials is the outgoing port for persisting credentials.
+type Credentials interface {
+	Save(Credential) error
+}
+
 // AccountCreator is the incoming port for creating an account.
 type AccountCreator interface {
 	CreateAccount(username, password string) error
@@ -86,10 +99,11 @@ type Pond struct {
 	sources       Sources
 	subscriptions Subscriptions
 	users         Users
+	credentials   Credentials
 }
 
-func New(fetcher FeedFetcher, sources Sources, subscriptions Subscriptions, users Users) *Pond {
-	return &Pond{fetcher: fetcher, sources: sources, subscriptions: subscriptions, users: users}
+func New(fetcher FeedFetcher, sources Sources, subscriptions Subscriptions, users Users, credentials Credentials) *Pond {
+	return &Pond{fetcher: fetcher, sources: sources, subscriptions: subscriptions, users: users, credentials: credentials}
 }
 
 func (p *Pond) CreateAccount(username, password string) error {
@@ -104,7 +118,15 @@ func (p *Pond) CreateAccount(username, password string) error {
 	if err != nil {
 		return err
 	}
-	return p.users.Save(User{ID: id.String(), Username: username})
+	if err := p.users.Save(User{ID: id.String(), Username: username}); err != nil {
+		return err
+	}
+	salt := make([]byte, 16)
+	if _, err := rand.Read(salt); err != nil {
+		return err
+	}
+	hash := HashPassword(password, salt)
+	return p.credentials.Save(Credential{UserID: id.String(), Hash: hash, Salt: salt})
 }
 
 func (p *Pond) Subscribe(userID, feedURL string) error {
