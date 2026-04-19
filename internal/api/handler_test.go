@@ -21,6 +21,60 @@ func (m *mockSubscriber) Subscribe(feedURL string) error {
 
 var _ pond.Subscriber = (*mockSubscriber)(nil)
 
+func TestSubscribeHandler_MalformedJSON_ReturnsBadRequest(t *testing.T) {
+	mock := &mockSubscriber{}
+	handler := api.NewSubscribeHandler(mock)
+
+	body := strings.NewReader(`not json`)
+	req := httptest.NewRequest(http.MethodPost, "/subscriptions", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
+	}
+}
+
+func TestSubscribeHandler_EmptyURL_ReturnsBadRequest(t *testing.T) {
+	mock := &mockSubscriber{}
+	handler := api.NewSubscribeHandler(mock)
+
+	body := strings.NewReader(`{"url":""}`)
+	req := httptest.NewRequest(http.MethodPost, "/subscriptions", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
+	}
+	if mock.calledWith != "" {
+		t.Errorf("expected Subscribe not to be called, but it was called with %q", mock.calledWith)
+	}
+}
+
+func TestSubscribeHandler_MalformedURL_ReturnsBadRequest(t *testing.T) {
+	mock := &mockSubscriber{}
+	handler := api.NewSubscribeHandler(mock)
+
+	body := strings.NewReader(`{"url":"not a url"}`)
+	req := httptest.NewRequest(http.MethodPost, "/subscriptions", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
+	}
+	if mock.calledWith != "" {
+		t.Errorf("expected Subscribe not to be called, but it was called with %q", mock.calledWith)
+	}
+}
+
 func TestSubscribeHandler_ValidURL_ForwardsToPort(t *testing.T) {
 	mock := &mockSubscriber{}
 	handler := api.NewSubscribeHandler(mock)
