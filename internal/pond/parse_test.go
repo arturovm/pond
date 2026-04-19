@@ -72,3 +72,19 @@ func TestParseMetadata_ExtractsTitle(t *testing.T) {
 		t.Errorf("expected title %q, got %q", "My Feed", meta.Title)
 	}
 }
+
+func TestExtractSource_MapsAllMetadataFields(t *testing.T) {
+	meta := pond.Metadata{Title: "My Feed", Link: "https://example.com", Description: "A feed about things."}
+
+	source := pond.ExtractSource(meta)
+
+	if source.Title != meta.Title {
+		t.Errorf("expected title %q, got %q", meta.Title, source.Title)
+	}
+	if source.Link != meta.Link {
+		t.Errorf("expected link %q, got %q", meta.Link, source.Link)
+	}
+	if source.Description != meta.Description {
+		t.Errorf("expected description %q, got %q", meta.Description, source.Description)
+	}
+}

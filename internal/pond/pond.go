@@ -17,6 +17,22 @@ type Metadata struct {
 	Description string
 }
 
+// Source represents a feed source extracted from Metadata.
+type Source struct {
+	Title       string
+	Link        string
+	Description string
+}
+
+// ExtractSource builds a Source from feed Metadata.
+func ExtractSource(meta Metadata) Source {
+	return Source{
+		Title:       meta.Title,
+		Link:        meta.Link,
+		Description: meta.Description,
+	}
+}
+
 // FeedFetcher is the outgoing port for fetching feeds.
 type FeedFetcher interface {
 	Fetch(url string) (Feed, error)
