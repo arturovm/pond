@@ -147,12 +147,19 @@ func TestPond_Subscribe_ReturnsParseError(t *testing.T) {
 }
 
 type mockUsers struct {
-	exists bool
-	err    error
+	exists  bool
+	err     error
+	saved   pond.User
+	saveErr error
 }
 
 func (m *mockUsers) Exists(username string) (bool, error) {
 	return m.exists, m.err
+}
+
+func (m *mockUsers) Save(u pond.User) error {
+	m.saved = u
+	return m.saveErr
 }
 
 var _ pond.Users = (*mockUsers)(nil)
@@ -177,6 +184,35 @@ func TestPond_CreateAccount_UsersPortError_ReturnsError(t *testing.T) {
 
 	if !errors.Is(err, portErr) {
 		t.Errorf("expected %v, got %v", portErr, err)
+	}
+}
+
+func TestPond_CreateAccount_NewUsername_SavesUserInUsers(t *testing.T) {
+	users := &mockUsers{exists: false}
+	p := pond.New(nil, nil, nil, users)
+
+	err := p.CreateAccount("alice", "secret")
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if users.saved.Username != "alice" {
+		t.Errorf("expected saved username %q, got %q", "alice", users.saved.Username)
+	}
+	if users.saved.ID == "" {
+		t.Error("expected non-empty user ID")
+	}
+}
+
+func TestPond_CreateAccount_SaveError_ReturnsError(t *testing.T) {
+	saveErr := errors.New("save failed")
+	users := &mockUsers{exists: false, saveErr: saveErr}
+	p := pond.New(nil, nil, nil, users)
+
+	err := p.CreateAccount("alice", "secret")
+
+	if !errors.Is(err, saveErr) {
+		t.Errorf("expected %v, got %v", saveErr, err)
 	}
 }
 

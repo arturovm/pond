@@ -1,6 +1,10 @@
 package pond
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/google/uuid"
+)
 
 // Feed represents raw feed content fetched from a URL.
 type Feed struct {
@@ -56,12 +60,19 @@ type Subscriber interface {
 	Subscribe(userID, feedURL string) error
 }
 
+// User represents a registered user.
+type User struct {
+	ID       string
+	Username string
+}
+
 // ErrUsernameTaken is returned when a username already exists.
 var ErrUsernameTaken = errors.New("username taken")
 
-// Users is the outgoing port for checking user existence.
+// Users is the outgoing port for user persistence.
 type Users interface {
 	Exists(username string) (bool, error)
+	Save(User) error
 }
 
 // AccountCreator is the incoming port for creating an account.
@@ -89,7 +100,11 @@ func (p *Pond) CreateAccount(username, password string) error {
 	if exists {
 		return ErrUsernameTaken
 	}
-	return nil
+	id, err := uuid.NewV7()
+	if err != nil {
+		return err
+	}
+	return p.users.Save(User{ID: id.String(), Username: username})
 }
 
 func (p *Pond) Subscribe(userID, feedURL string) error {

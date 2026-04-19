@@ -27,3 +27,12 @@ func (s *SQLite) Exists(username string) (bool, error) {
 	).Scan(&exists)
 	return exists, err
 }
+
+// Save persists a user to the database.
+func (s *SQLite) Save(u pond.User) error {
+	_, err := s.db.Exec(
+		`INSERT INTO users (id, username) VALUES (?, ?)`,
+		u.ID, u.Username,
+	)
+	return err
+}

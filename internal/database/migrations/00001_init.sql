@@ -1,4 +1,9 @@
 -- +goose Up
+CREATE TABLE users (
+    id       TEXT PRIMARY KEY,
+    username TEXT NOT NULL UNIQUE
+);
+
 CREATE TABLE sources (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     title       TEXT NOT NULL,
@@ -16,3 +21,4 @@ CREATE TABLE subscriptions (
 -- +goose Down
 DROP TABLE subscriptions;
 DROP TABLE sources;
+DROP TABLE users;

@@ -3,6 +3,7 @@ module github.com/arturovm/pond
 go 1.26.2
 
 require (
+	github.com/google/uuid v1.6.0
 	github.com/mattn/go-sqlite3 v1.14.42
 	github.com/pressly/goose/v3 v3.27.0
 	github.com/spf13/pflag v1.0.10
