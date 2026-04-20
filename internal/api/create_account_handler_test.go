@@ -2,6 +2,7 @@ package api_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -18,13 +19,14 @@ type mockAccountCreator struct {
 	calledWithUsername string
 	calledWithPassword string
 	calledWithIP       netip.Addr
+	token              string
 }
 
 func (m *mockAccountCreator) CreateAccount(username, password string, ip netip.Addr) (string, error) {
 	m.calledWithUsername = username
 	m.calledWithPassword = password
 	m.calledWithIP = ip
-	return "", nil
+	return m.token, nil
 }
 
 var _ pond.AccountCreator = (*mockAccountCreator)(nil)
@@ -149,6 +151,28 @@ func TestCreateAccountHandler_MalformedJSON_ReturnsBadRequest(t *testing.T) {
 
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
+	}
+}
+
+func TestCreateAccountHandler_ValidCredentials_ReturnsSessionTokenInBody(t *testing.T) {
+	mock := &mockAccountCreator{token: "abc123token"}
+	handler := api.NewCreateAccountHandler(mock, slog.Default())
+
+	body := strings.NewReader(`{"username":"alice","password":"secret"}`)
+	req := httptest.NewRequest(http.MethodPost, "/accounts", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	var resp struct {
+		SessionToken string `json:"session_token"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response body: %v", err)
+	}
+	if resp.SessionToken != "abc123token" {
+		t.Errorf("expected session_token %q, got %q", "abc123token", resp.SessionToken)
 	}
 }
 

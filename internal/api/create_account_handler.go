@@ -41,7 +41,8 @@ func (h *CreateAccountHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
 		ip, _ = netip.ParseAddr(host)
 	}
-	if _, err := h.accountCreator.CreateAccount(body.Username, body.Password, ip); err != nil {
+	token, err := h.accountCreator.CreateAccount(body.Username, body.Password, ip)
+	if err != nil {
 		if errors.Is(err, pond.ErrUsernameTaken) {
 			http.Error(w, "username taken", http.StatusConflict)
 			return
@@ -50,5 +51,9 @@ func (h *CreateAccountHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
+	json.NewEncoder(w).Encode(struct {
+		SessionToken string `json:"session_token"`
+	}{SessionToken: token})
 }
