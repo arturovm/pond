@@ -52,19 +52,16 @@ func main() {
 	}
 
 	// wire adapters and domain
-	app := pond.New(
+	subscriptionService := pond.NewSubscriptionService(
 		fetcher.NewHTTPFetcher(),
 		sources.NewSQLite(db),
 		subscriptions.NewSQLite(db),
-		nil,
-		nil,
-		nil,
 	)
 
 	// start server
 	addr := net.JoinHostPort(conf.Addr, fmt.Sprintf("%d", conf.Port))
 	slog.Info("server starting", "addr", addr)
-	if err := http.ListenAndServe(addr, api.NewRouter(app, slog.Default())); err != nil {
+	if err := http.ListenAndServe(addr, api.NewRouter(subscriptionService, slog.Default())); err != nil {
 		slog.Error("server error", "error", err)
 		os.Exit(1)
 	}
