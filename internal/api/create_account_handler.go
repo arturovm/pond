@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"net"
 	"net/http"
+	"net/netip"
 
 	"github.com/arturovm/pond/internal/pond"
 )
@@ -35,7 +37,11 @@ func (h *CreateAccountHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
-	if _, err := h.accountCreator.CreateAccount(body.Username, body.Password); err != nil {
+	var ip netip.Addr
+	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		ip, _ = netip.ParseAddr(host)
+	}
+	if _, err := h.accountCreator.CreateAccount(body.Username, body.Password, ip); err != nil {
 		if errors.Is(err, pond.ErrUsernameTaken) {
 			http.Error(w, "username taken", http.StatusConflict)
 			return

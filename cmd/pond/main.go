@@ -58,6 +58,7 @@ func main() {
 		subscriptions.NewSQLite(db),
 		nil,
 		nil,
+		nil,
 	)
 
 	// start server

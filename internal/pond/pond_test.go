@@ -2,6 +2,7 @@ package pond_test
 
 import (
 	"errors"
+	"net/netip"
 	"testing"
 
 	"github.com/arturovm/pond/internal/pond"
@@ -50,7 +51,7 @@ func TestPond_Subscribe_SavesSubscriptionInSubscriptions(t *testing.T) {
 	fetcher := &mockFeedFetcher{feed: validFeed}
 	sources := &mockSources{}
 	subscriptions := &mockSubscriptions{}
-	p := pond.New(fetcher, sources, subscriptions, nil, nil)
+	p := pond.New(fetcher, sources, subscriptions, nil, nil, nil)
 
 	err := p.Subscribe("user1", "https://example.com/feed.rss")
 
@@ -69,7 +70,7 @@ func TestPond_Subscribe_SavesSubscriptionInSubscriptions(t *testing.T) {
 func TestPond_Subscribe_SavesSourceInSources(t *testing.T) {
 	fetcher := &mockFeedFetcher{feed: validFeed}
 	sources := &mockSources{}
-	p := pond.New(fetcher, sources, &mockSubscriptions{}, nil, nil)
+	p := pond.New(fetcher, sources, &mockSubscriptions{}, nil, nil, nil)
 
 	err := p.Subscribe("user1", "https://example.com/feed.rss")
 
@@ -85,7 +86,7 @@ func TestPond_Subscribe_SavesSourceInSources(t *testing.T) {
 func TestPond_Subscribe_CallsFeedFetcherWithURL(t *testing.T) {
 	fetcher := &mockFeedFetcher{feed: validFeed}
 	sources := &mockSources{}
-	p := pond.New(fetcher, sources, &mockSubscriptions{}, nil, nil)
+	p := pond.New(fetcher, sources, &mockSubscriptions{}, nil, nil, nil)
 
 	err := p.Subscribe("user1", "https://example.com/feed.rss")
 
@@ -101,7 +102,7 @@ func TestPond_Subscribe_ReturnsSourcesError(t *testing.T) {
 	saveErr := errors.New("save failed")
 	fetcher := &mockFeedFetcher{feed: validFeed}
 	sources := &mockSources{err: saveErr}
-	p := pond.New(fetcher, sources, &mockSubscriptions{}, nil, nil)
+	p := pond.New(fetcher, sources, &mockSubscriptions{}, nil, nil, nil)
 
 	err := p.Subscribe("user1", "https://example.com/feed.rss")
 
@@ -113,7 +114,7 @@ func TestPond_Subscribe_ReturnsSourcesError(t *testing.T) {
 func TestPond_Subscribe_ReturnsFeedFetcherError(t *testing.T) {
 	fetchErr := errors.New("fetch failed")
 	fetcher := &mockFeedFetcher{err: fetchErr}
-	p := pond.New(fetcher, &mockSources{}, &mockSubscriptions{}, nil, nil)
+	p := pond.New(fetcher, &mockSources{}, &mockSubscriptions{}, nil, nil, nil)
 
 	err := p.Subscribe("user1", "https://example.com/feed.rss")
 
@@ -126,7 +127,7 @@ func TestPond_Subscribe_ReturnsSubscriptionsError(t *testing.T) {
 	saveErr := errors.New("subscriptions save failed")
 	fetcher := &mockFeedFetcher{feed: validFeed}
 	subscriptions := &mockSubscriptions{err: saveErr}
-	p := pond.New(fetcher, &mockSources{}, subscriptions, nil, nil)
+	p := pond.New(fetcher, &mockSources{}, subscriptions, nil, nil, nil)
 
 	err := p.Subscribe("user1", "https://example.com/feed.rss")
 
@@ -137,7 +138,7 @@ func TestPond_Subscribe_ReturnsSubscriptionsError(t *testing.T) {
 
 func TestPond_Subscribe_ReturnsParseError(t *testing.T) {
 	fetcher := &mockFeedFetcher{feed: pond.Feed{Body: []byte("not xml")}}
-	p := pond.New(fetcher, &mockSources{}, &mockSubscriptions{}, nil, nil)
+	p := pond.New(fetcher, &mockSources{}, &mockSubscriptions{}, nil, nil, nil)
 
 	err := p.Subscribe("user1", "https://example.com/feed.rss")
 
@@ -176,11 +177,23 @@ func (m *mockCredentials) Save(c pond.Credential) error {
 
 var _ pond.Credentials = (*mockCredentials)(nil)
 
+type mockSessions struct {
+	saved   pond.Session
+	saveErr error
+}
+
+func (m *mockSessions) Save(s pond.Session) error {
+	m.saved = s
+	return m.saveErr
+}
+
+var _ pond.Sessions = (*mockSessions)(nil)
+
 func TestPond_CreateAccount_ExistingUsername_ReturnsErrUsernameTaken(t *testing.T) {
 	users := &mockUsers{exists: true}
-	p := pond.New(nil, nil, nil, users, nil)
+	p := pond.New(nil, nil, nil, users, nil, nil)
 
-	_, err := p.CreateAccount("alice", "secret")
+	_, err := p.CreateAccount("alice", "secret", netip.Addr{})
 
 	if !errors.Is(err, pond.ErrUsernameTaken) {
 		t.Errorf("expected ErrUsernameTaken, got %v", err)
@@ -190,9 +203,9 @@ func TestPond_CreateAccount_ExistingUsername_ReturnsErrUsernameTaken(t *testing.
 func TestPond_CreateAccount_UsersPortError_ReturnsError(t *testing.T) {
 	portErr := errors.New("db failed")
 	users := &mockUsers{err: portErr}
-	p := pond.New(nil, nil, nil, users, nil)
+	p := pond.New(nil, nil, nil, users, nil, nil)
 
-	_, err := p.CreateAccount("alice", "secret")
+	_, err := p.CreateAccount("alice", "secret", netip.Addr{})
 
 	if !errors.Is(err, portErr) {
 		t.Errorf("expected %v, got %v", portErr, err)
@@ -201,9 +214,9 @@ func TestPond_CreateAccount_UsersPortError_ReturnsError(t *testing.T) {
 
 func TestPond_CreateAccount_NewUsername_SavesUserInUsers(t *testing.T) {
 	users := &mockUsers{exists: false}
-	p := pond.New(nil, nil, nil, users, &mockCredentials{})
+	p := pond.New(nil, nil, nil, users, &mockCredentials{}, &mockSessions{})
 
-	_, err := p.CreateAccount("alice", "secret")
+	_, err := p.CreateAccount("alice", "secret", netip.Addr{})
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -219,9 +232,9 @@ func TestPond_CreateAccount_NewUsername_SavesUserInUsers(t *testing.T) {
 func TestPond_CreateAccount_SaveError_ReturnsError(t *testing.T) {
 	saveErr := errors.New("save failed")
 	users := &mockUsers{exists: false, saveErr: saveErr}
-	p := pond.New(nil, nil, nil, users, nil)
+	p := pond.New(nil, nil, nil, users, nil, nil)
 
-	_, err := p.CreateAccount("alice", "secret")
+	_, err := p.CreateAccount("alice", "secret", netip.Addr{})
 
 	if !errors.Is(err, saveErr) {
 		t.Errorf("expected %v, got %v", saveErr, err)
@@ -231,9 +244,9 @@ func TestPond_CreateAccount_SaveError_ReturnsError(t *testing.T) {
 func TestPond_CreateAccount_NewUsername_DoesNotReturnError(t *testing.T) {
 	users := &mockUsers{exists: false}
 	credentials := &mockCredentials{}
-	p := pond.New(nil, nil, nil, users, credentials)
+	p := pond.New(nil, nil, nil, users, credentials, &mockSessions{})
 
-	_, err := p.CreateAccount("alice", "secret")
+	_, err := p.CreateAccount("alice", "secret", netip.Addr{})
 
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
@@ -244,9 +257,9 @@ func TestPond_CreateAccount_CredentialsPortError_ReturnsError(t *testing.T) {
 	credErr := errors.New("credentials save failed")
 	users := &mockUsers{exists: false}
 	credentials := &mockCredentials{saveErr: credErr}
-	p := pond.New(nil, nil, nil, users, credentials)
+	p := pond.New(nil, nil, nil, users, credentials, &mockSessions{})
 
-	_, err := p.CreateAccount("alice", "secret")
+	_, err := p.CreateAccount("alice", "secret", netip.Addr{})
 
 	if !errors.Is(err, credErr) {
 		t.Errorf("expected %v, got %v", credErr, err)
@@ -256,9 +269,9 @@ func TestPond_CreateAccount_CredentialsPortError_ReturnsError(t *testing.T) {
 func TestPond_CreateAccount_SavesCredentialWithNonEmptyHashAndSalt(t *testing.T) {
 	users := &mockUsers{exists: false}
 	credentials := &mockCredentials{}
-	p := pond.New(nil, nil, nil, users, credentials)
+	p := pond.New(nil, nil, nil, users, credentials, &mockSessions{})
 
-	_, err := p.CreateAccount("alice", "secret")
+	_, err := p.CreateAccount("alice", "secret", netip.Addr{})
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -274,9 +287,9 @@ func TestPond_CreateAccount_SavesCredentialWithNonEmptyHashAndSalt(t *testing.T)
 func TestPond_CreateAccount_SavesCredentialWithMatchingUserID(t *testing.T) {
 	users := &mockUsers{exists: false}
 	credentials := &mockCredentials{}
-	p := pond.New(nil, nil, nil, users, credentials)
+	p := pond.New(nil, nil, nil, users, credentials, &mockSessions{})
 
-	_, err := p.CreateAccount("alice", "secret")
+	_, err := p.CreateAccount("alice", "secret", netip.Addr{})
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -287,13 +300,13 @@ func TestPond_CreateAccount_SavesCredentialWithMatchingUserID(t *testing.T) {
 }
 
 func TestPond_CreateAccount_TwoCallsProduceDifferentSessionTokens(t *testing.T) {
-	p := pond.New(nil, nil, nil, &mockUsers{exists: false}, &mockCredentials{})
+	p := pond.New(nil, nil, nil, &mockUsers{exists: false}, &mockCredentials{}, &mockSessions{})
 
-	token1, err := p.CreateAccount("alice", "secret1")
+	token1, err := p.CreateAccount("alice", "secret1", netip.Addr{})
 	if err != nil {
 		t.Fatalf("unexpected error on first call: %v", err)
 	}
-	token2, err := p.CreateAccount("bob", "secret2")
+	token2, err := p.CreateAccount("bob", "secret2", netip.Addr{})
 	if err != nil {
 		t.Fatalf("unexpected error on second call: %v", err)
 	}
@@ -305,9 +318,9 @@ func TestPond_CreateAccount_TwoCallsProduceDifferentSessionTokens(t *testing.T) 
 func TestPond_CreateAccount_SessionTokenIsAtLeast32Characters(t *testing.T) {
 	users := &mockUsers{exists: false}
 	credentials := &mockCredentials{}
-	p := pond.New(nil, nil, nil, users, credentials)
+	p := pond.New(nil, nil, nil, users, credentials, &mockSessions{})
 
-	token, err := p.CreateAccount("alice", "secret")
+	token, err := p.CreateAccount("alice", "secret", netip.Addr{})
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -320,14 +333,104 @@ func TestPond_CreateAccount_SessionTokenIsAtLeast32Characters(t *testing.T) {
 func TestPond_CreateAccount_ReturnsNonEmptySessionToken(t *testing.T) {
 	users := &mockUsers{exists: false}
 	credentials := &mockCredentials{}
-	p := pond.New(nil, nil, nil, users, credentials)
+	p := pond.New(nil, nil, nil, users, credentials, &mockSessions{})
 
-	token, err := p.CreateAccount("alice", "secret")
+	token, err := p.CreateAccount("alice", "secret", netip.Addr{})
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if token == "" {
 		t.Error("expected non-empty session token")
+	}
+}
+
+func TestPond_CreateAccount_SavesSessionWithIP(t *testing.T) {
+	users := &mockUsers{exists: false}
+	sessions := &mockSessions{}
+	p := pond.New(nil, nil, nil, users, &mockCredentials{}, sessions)
+
+	ip := netip.MustParseAddr("192.0.2.1")
+	_, err := p.CreateAccount("alice", "secret", ip)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if sessions.saved.IP != ip {
+		t.Errorf("expected saved session IP %v, got %v", ip, sessions.saved.IP)
+	}
+}
+
+func TestPond_CreateAccount_SessionsPortError_ReturnsError(t *testing.T) {
+	sessErr := errors.New("sessions save failed")
+	sessions := &mockSessions{saveErr: sessErr}
+	p := pond.New(nil, nil, nil, &mockUsers{exists: false}, &mockCredentials{}, sessions)
+
+	_, err := p.CreateAccount("alice", "secret", netip.Addr{})
+
+	if !errors.Is(err, sessErr) {
+		t.Errorf("expected %v, got %v", sessErr, err)
+	}
+}
+
+func TestPond_CreateAccount_SavesSessionWithExpiresAtAfterCreatedAt(t *testing.T) {
+	users := &mockUsers{exists: false}
+	sessions := &mockSessions{}
+	p := pond.New(nil, nil, nil, users, &mockCredentials{}, sessions)
+
+	_, err := p.CreateAccount("alice", "secret", netip.Addr{})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !sessions.saved.ExpiresAt.After(sessions.saved.CreatedAt) {
+		t.Errorf("expected ExpiresAt %v to be after CreatedAt %v", sessions.saved.ExpiresAt, sessions.saved.CreatedAt)
+	}
+}
+
+func TestPond_CreateAccount_SavesSessionWithNonZeroCreatedAt(t *testing.T) {
+	users := &mockUsers{exists: false}
+	sessions := &mockSessions{}
+	p := pond.New(nil, nil, nil, users, &mockCredentials{}, sessions)
+
+	_, err := p.CreateAccount("alice", "secret", netip.Addr{})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if sessions.saved.CreatedAt.IsZero() {
+		t.Error("expected non-zero CreatedAt on saved session")
+	}
+}
+
+func TestPond_CreateAccount_SavesSessionWithMatchingUserID(t *testing.T) {
+	users := &mockUsers{exists: false}
+	credentials := &mockCredentials{}
+	sessions := &mockSessions{}
+	p := pond.New(nil, nil, nil, users, credentials, sessions)
+
+	_, err := p.CreateAccount("alice", "secret", netip.Addr{})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if sessions.saved.UserID != users.saved.ID {
+		t.Errorf("expected saved session UserID %q to match user ID %q", sessions.saved.UserID, users.saved.ID)
+	}
+}
+
+func TestPond_CreateAccount_SavesSessionWithGeneratedToken(t *testing.T) {
+	users := &mockUsers{exists: false}
+	credentials := &mockCredentials{}
+	sessions := &mockSessions{}
+	p := pond.New(nil, nil, nil, users, credentials, sessions)
+
+	token, err := p.CreateAccount("alice", "secret", netip.Addr{})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if sessions.saved.Token != token {
+		t.Errorf("expected saved session token %q, got %q", token, sessions.saved.Token)
 	}
 }

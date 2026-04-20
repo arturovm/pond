@@ -4,6 +4,8 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"net/netip"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -89,9 +91,25 @@ type Credentials interface {
 	Save(Credential) error
 }
 
+const sessionDuration = 30 * 24 * time.Hour
+
+// Session represents an authenticated session.
+type Session struct {
+	Token     string
+	UserID    string
+	IP        netip.Addr
+	CreatedAt time.Time
+	ExpiresAt time.Time
+}
+
+// Sessions is the outgoing port for persisting sessions.
+type Sessions interface {
+	Save(Session) error
+}
+
 // AccountCreator is the incoming port for creating an account.
 type AccountCreator interface {
-	CreateAccount(username, password string) (string, error)
+	CreateAccount(username, password string, ip netip.Addr) (string, error)
 }
 
 // Pond is the application hexagon.
@@ -101,13 +119,14 @@ type Pond struct {
 	subscriptions Subscriptions
 	users         Users
 	credentials   Credentials
+	sessions      Sessions
 }
 
-func New(fetcher FeedFetcher, sources Sources, subscriptions Subscriptions, users Users, credentials Credentials) *Pond {
-	return &Pond{fetcher: fetcher, sources: sources, subscriptions: subscriptions, users: users, credentials: credentials}
+func New(fetcher FeedFetcher, sources Sources, subscriptions Subscriptions, users Users, credentials Credentials, sessions Sessions) *Pond {
+	return &Pond{fetcher: fetcher, sources: sources, subscriptions: subscriptions, users: users, credentials: credentials, sessions: sessions}
 }
 
-func (p *Pond) CreateAccount(username, password string) (string, error) {
+func (p *Pond) CreateAccount(username, password string, ip netip.Addr) (string, error) {
 	exists, err := p.users.Exists(username)
 	if err != nil {
 		return "", err
@@ -134,7 +153,12 @@ func (p *Pond) CreateAccount(username, password string) (string, error) {
 	if _, err := rand.Read(tokenBytes); err != nil {
 		return "", err
 	}
-	return hex.EncodeToString(tokenBytes), nil
+	token := hex.EncodeToString(tokenBytes)
+	now := time.Now()
+	if err := p.sessions.Save(Session{Token: token, UserID: id.String(), IP: ip, CreatedAt: now, ExpiresAt: now.Add(sessionDuration)}); err != nil {
+		return "", err
+	}
+	return token, nil
 }
 
 func (p *Pond) Subscribe(userID, feedURL string) error {

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"strings"
 	"testing"
 
@@ -16,11 +17,13 @@ import (
 type mockAccountCreator struct {
 	calledWithUsername string
 	calledWithPassword string
+	calledWithIP       netip.Addr
 }
 
-func (m *mockAccountCreator) CreateAccount(username, password string) (string, error) {
+func (m *mockAccountCreator) CreateAccount(username, password string, ip netip.Addr) (string, error) {
 	m.calledWithUsername = username
 	m.calledWithPassword = password
+	m.calledWithIP = ip
 	return "", nil
 }
 
@@ -30,7 +33,7 @@ type errorAccountCreator struct {
 	err error
 }
 
-func (e *errorAccountCreator) CreateAccount(username, password string) (string, error) {
+func (e *errorAccountCreator) CreateAccount(_, _ string, _ netip.Addr) (string, error) {
 	return "", e.err
 }
 
@@ -146,5 +149,23 @@ func TestCreateAccountHandler_MalformedJSON_ReturnsBadRequest(t *testing.T) {
 
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
+	}
+}
+
+func TestCreateAccountHandler_ForwardsClientIP(t *testing.T) {
+	mock := &mockAccountCreator{}
+	handler := api.NewCreateAccountHandler(mock, slog.Default())
+
+	body := strings.NewReader(`{"username":"alice","password":"secret"}`)
+	req := httptest.NewRequest(http.MethodPost, "/accounts", body)
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "192.0.2.1:4321"
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	want := netip.MustParseAddr("192.0.2.1")
+	if mock.calledWithIP != want {
+		t.Errorf("expected CreateAccount called with IP %v, got %v", want, mock.calledWithIP)
 	}
 }
