@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -55,5 +56,5 @@ func (h *CreateAccountHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusAccepted)
 	json.NewEncoder(w).Encode(struct {
 		SessionToken string `json:"session_token"`
-	}{SessionToken: token})
+	}{SessionToken: hex.EncodeToString(token)})
 }

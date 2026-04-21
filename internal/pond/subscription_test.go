@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/arturovm/pond/internal/pond"
+	"github.com/google/uuid"
 )
 
 type mockFeedFetcher struct {
@@ -52,13 +53,13 @@ func TestSubscriptionService_Subscribe_SavesSubscriptionInSubscriptions(t *testi
 	subscriptions := &mockSubscriptions{}
 	s := pond.NewSubscriptionService(fetcher, sources, subscriptions)
 
-	err := s.Subscribe("user1", "https://example.com/feed.rss")
+	err := s.Subscribe(uuid.UUID{1}, "https://example.com/feed.rss")
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	want := pond.Subscription{
-		UserID: "user1",
+		UserID: uuid.UUID{1},
 		Source: pond.Source{Title: "T", Link: "https://example.com", Description: "D"},
 	}
 	if subscriptions.saved != want {
@@ -71,7 +72,7 @@ func TestSubscriptionService_Subscribe_SavesSourceInSources(t *testing.T) {
 	sources := &mockSources{}
 	s := pond.NewSubscriptionService(fetcher, sources, &mockSubscriptions{})
 
-	err := s.Subscribe("user1", "https://example.com/feed.rss")
+	err := s.Subscribe(uuid.UUID{1}, "https://example.com/feed.rss")
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -86,7 +87,7 @@ func TestSubscriptionService_Subscribe_CallsFeedFetcherWithURL(t *testing.T) {
 	fetcher := &mockFeedFetcher{feed: validFeed}
 	s := pond.NewSubscriptionService(fetcher, &mockSources{}, &mockSubscriptions{})
 
-	err := s.Subscribe("user1", "https://example.com/feed.rss")
+	err := s.Subscribe(uuid.UUID{1}, "https://example.com/feed.rss")
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -102,7 +103,7 @@ func TestSubscriptionService_Subscribe_ReturnsSourcesError(t *testing.T) {
 	sources := &mockSources{err: saveErr}
 	s := pond.NewSubscriptionService(fetcher, sources, &mockSubscriptions{})
 
-	err := s.Subscribe("user1", "https://example.com/feed.rss")
+	err := s.Subscribe(uuid.UUID{1}, "https://example.com/feed.rss")
 
 	if !errors.Is(err, saveErr) {
 		t.Errorf("expected error %v, got %v", saveErr, err)
@@ -114,7 +115,7 @@ func TestSubscriptionService_Subscribe_ReturnsFeedFetcherError(t *testing.T) {
 	fetcher := &mockFeedFetcher{err: fetchErr}
 	s := pond.NewSubscriptionService(fetcher, &mockSources{}, &mockSubscriptions{})
 
-	err := s.Subscribe("user1", "https://example.com/feed.rss")
+	err := s.Subscribe(uuid.UUID{1}, "https://example.com/feed.rss")
 
 	if !errors.Is(err, fetchErr) {
 		t.Errorf("expected error %v, got %v", fetchErr, err)
@@ -127,7 +128,7 @@ func TestSubscriptionService_Subscribe_ReturnsSubscriptionsError(t *testing.T) {
 	subscriptions := &mockSubscriptions{err: saveErr}
 	s := pond.NewSubscriptionService(fetcher, &mockSources{}, subscriptions)
 
-	err := s.Subscribe("user1", "https://example.com/feed.rss")
+	err := s.Subscribe(uuid.UUID{1}, "https://example.com/feed.rss")
 
 	if !errors.Is(err, saveErr) {
 		t.Errorf("expected error %v, got %v", saveErr, err)
@@ -138,7 +139,7 @@ func TestSubscriptionService_Subscribe_ReturnsParseError(t *testing.T) {
 	fetcher := &mockFeedFetcher{feed: pond.Feed{Body: []byte("not xml")}}
 	s := pond.NewSubscriptionService(fetcher, &mockSources{}, &mockSubscriptions{})
 
-	err := s.Subscribe("user1", "https://example.com/feed.rss")
+	err := s.Subscribe(uuid.UUID{1}, "https://example.com/feed.rss")
 
 	if err == nil {
 		t.Error("expected a parse error, got nil")

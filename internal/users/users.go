@@ -32,7 +32,7 @@ func (s *SQLite) Exists(username string) (bool, error) {
 func (s *SQLite) Save(u pond.User) error {
 	_, err := s.db.Exec(
 		`INSERT INTO users (id, username) VALUES (?, ?)`,
-		u.ID, u.Username,
+		u.ID.String(), u.Username,
 	)
 	return err
 }

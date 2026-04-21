@@ -2,7 +2,6 @@ package pond
 
 import (
 	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"net/netip"
 	"time"
@@ -12,7 +11,7 @@ import (
 
 // User represents a registered user.
 type User struct {
-	ID       string
+	ID       uuid.UUID
 	Username string
 }
 
@@ -21,7 +20,7 @@ var ErrUsernameTaken = errors.New("username taken")
 
 // Credential holds the hashed password material for a user.
 type Credential struct {
-	UserID string
+	UserID uuid.UUID
 	Hash   []byte
 	Salt   []byte
 }
@@ -30,8 +29,8 @@ const sessionDuration = 30 * 24 * time.Hour
 
 // Session represents an authenticated session.
 type Session struct {
-	Token     string
-	UserID    string
+	Token     []byte
+	UserID    uuid.UUID
 	IP        netip.Addr
 	CreatedAt time.Time
 	ExpiresAt time.Time
@@ -55,7 +54,7 @@ type Sessions interface {
 
 // AccountCreator is the incoming port for creating an account.
 type AccountCreator interface {
-	CreateAccount(username, password string, ip netip.Addr) (string, error)
+	CreateAccount(username, password string, ip netip.Addr) ([]byte, error)
 }
 
 // AccountService implements account management use cases.
@@ -69,37 +68,36 @@ func NewAccountService(users Users, credentials Credentials, sessions Sessions) 
 	return &AccountService{users: users, credentials: credentials, sessions: sessions}
 }
 
-func (s *AccountService) CreateAccount(username, password string, ip netip.Addr) (string, error) {
+func (s *AccountService) CreateAccount(username, password string, ip netip.Addr) ([]byte, error) {
 	exists, err := s.users.Exists(username)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	if exists {
-		return "", ErrUsernameTaken
+		return nil, ErrUsernameTaken
 	}
 	id, err := uuid.NewV7()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	if err := s.users.Save(User{ID: id.String(), Username: username}); err != nil {
-		return "", err
+	if err := s.users.Save(User{ID: id, Username: username}); err != nil {
+		return nil, err
 	}
 	salt := make([]byte, 16)
 	if _, err := rand.Read(salt); err != nil {
-		return "", err
+		return nil, err
 	}
 	hash := HashPassword(password, salt)
-	if err := s.credentials.Save(Credential{UserID: id.String(), Hash: hash, Salt: salt}); err != nil {
-		return "", err
+	if err := s.credentials.Save(Credential{UserID: id, Hash: hash, Salt: salt}); err != nil {
+		return nil, err
 	}
-	tokenBytes := make([]byte, 16)
-	if _, err := rand.Read(tokenBytes); err != nil {
-		return "", err
+	token := make([]byte, 16)
+	if _, err := rand.Read(token); err != nil {
+		return nil, err
 	}
-	token := hex.EncodeToString(tokenBytes)
 	now := time.Now()
-	if err := s.sessions.Save(Session{Token: token, UserID: id.String(), IP: ip, CreatedAt: now, ExpiresAt: now.Add(sessionDuration)}); err != nil {
-		return "", err
+	if err := s.sessions.Save(Session{Token: token, UserID: id, IP: ip, CreatedAt: now, ExpiresAt: now.Add(sessionDuration)}); err != nil {
+		return nil, err
 	}
 	return token, nil
 }

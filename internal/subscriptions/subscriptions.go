@@ -22,7 +22,7 @@ var _ pond.Subscriptions = (*SQLite)(nil)
 func (s *SQLite) Save(sub pond.Subscription) error {
 	_, err := s.db.Exec(
 		`INSERT INTO subscriptions (user_id, source_link) VALUES (?, ?)`,
-		sub.UserID, sub.Source.Link,
+		sub.UserID.String(), sub.Source.Link,
 	)
 	return err
 }

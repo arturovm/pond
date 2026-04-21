@@ -1,11 +1,13 @@
 package pond_test
 
 import (
+	"bytes"
 	"errors"
 	"net/netip"
 	"testing"
 
 	"github.com/arturovm/pond/internal/pond"
+	"github.com/google/uuid"
 )
 
 type mockUsers struct {
@@ -85,8 +87,8 @@ func TestAccountService_CreateAccount_NewUsername_SavesUserInUsers(t *testing.T)
 	if users.saved.Username != "alice" {
 		t.Errorf("expected saved username %q, got %q", "alice", users.saved.Username)
 	}
-	if users.saved.ID == "" {
-		t.Error("expected non-empty user ID")
+	if users.saved.ID == (uuid.UUID{}) {
+		t.Error("expected non-zero user ID")
 	}
 }
 
@@ -171,12 +173,12 @@ func TestAccountService_CreateAccount_TwoCallsProduceDifferentSessionTokens(t *t
 	if err != nil {
 		t.Fatalf("unexpected error on second call: %v", err)
 	}
-	if token1 == token2 {
+	if bytes.Equal(token1, token2) {
 		t.Error("expected two calls to produce different session tokens")
 	}
 }
 
-func TestAccountService_CreateAccount_SessionTokenIsAtLeast32Characters(t *testing.T) {
+func TestAccountService_CreateAccount_SessionTokenIsAtLeast16Bytes(t *testing.T) {
 	users := &mockUsers{exists: false}
 	credentials := &mockCredentials{}
 	s := pond.NewAccountService(users, credentials, &mockSessions{})
@@ -186,8 +188,8 @@ func TestAccountService_CreateAccount_SessionTokenIsAtLeast32Characters(t *testi
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(token) < 32 {
-		t.Errorf("expected token length >= 32, got %d", len(token))
+	if len(token) < 16 {
+		t.Errorf("expected token length >= 16 bytes (128-bit entropy), got %d", len(token))
 	}
 }
 
@@ -201,7 +203,7 @@ func TestAccountService_CreateAccount_ReturnsNonEmptySessionToken(t *testing.T) 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if token == "" {
+	if len(token) == 0 {
 		t.Error("expected non-empty session token")
 	}
 }
@@ -291,7 +293,7 @@ func TestAccountService_CreateAccount_SavesSessionWithGeneratedToken(t *testing.
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if sessions.saved.Token != token {
-		t.Errorf("expected saved session token %q, got %q", token, sessions.saved.Token)
+	if !bytes.Equal(sessions.saved.Token, token) {
+		t.Errorf("expected saved session token %x, got %x", token, sessions.saved.Token)
 	}
 }

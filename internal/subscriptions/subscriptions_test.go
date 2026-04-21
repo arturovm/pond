@@ -8,6 +8,7 @@ import (
 
 	"github.com/arturovm/pond/internal/pond"
 	"github.com/arturovm/pond/internal/subscriptions"
+	"github.com/google/uuid"
 )
 
 func openTestDB(t *testing.T) *sql.DB {
@@ -34,7 +35,7 @@ func TestSQLiteSubscriptions_Save_ReturnsErrorOnDBFailure(t *testing.T) {
 	repo := subscriptions.NewSQLite(db)
 	db.Close()
 
-	err := repo.Save(pond.Subscription{UserID: "user-1", Source: pond.Source{Link: "https://example.com/feed.rss"}})
+	err := repo.Save(pond.Subscription{UserID: uuid.UUID{1}, Source: pond.Source{Link: "https://example.com/feed.rss"}})
 
 	if err == nil {
 		t.Error("expected an error when DB is closed, got nil")
@@ -46,7 +47,7 @@ func TestSQLiteSubscriptions_Save_PersistsSubscription(t *testing.T) {
 	repo := subscriptions.NewSQLite(db)
 
 	sub := pond.Subscription{
-		UserID: "user-1",
+		UserID: uuid.UUID{1},
 		Source: pond.Source{Link: "https://example.com/feed.rss"},
 	}
 	err := repo.Save(sub)
@@ -56,12 +57,12 @@ func TestSQLiteSubscriptions_Save_PersistsSubscription(t *testing.T) {
 	}
 
 	var gotUserID, gotSourceLink string
-	row := db.QueryRow(`SELECT user_id, source_link FROM subscriptions WHERE user_id = ? AND source_link = ?`, sub.UserID, sub.Source.Link)
+	row := db.QueryRow(`SELECT user_id, source_link FROM subscriptions WHERE user_id = ? AND source_link = ?`, sub.UserID.String(), sub.Source.Link)
 	if err := row.Scan(&gotUserID, &gotSourceLink); err != nil {
 		t.Fatalf("subscription not found in database: %v", err)
 	}
-	if gotUserID != sub.UserID || gotSourceLink != sub.Source.Link {
+	if gotUserID != sub.UserID.String() || gotSourceLink != sub.Source.Link {
 		t.Errorf("expected user_id=%q source_link=%q, got user_id=%q source_link=%q",
-			sub.UserID, sub.Source.Link, gotUserID, gotSourceLink)
+			sub.UserID.String(), sub.Source.Link, gotUserID, gotSourceLink)
 	}
 }

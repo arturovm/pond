@@ -1,5 +1,7 @@
 package pond
 
+import "github.com/google/uuid"
+
 // Feed represents raw feed content fetched from a URL.
 type Feed struct {
 	Body []byte
@@ -21,7 +23,7 @@ type Source struct {
 
 // Subscription represents a user's subscription to a Source.
 type Subscription struct {
-	UserID string
+	UserID uuid.UUID
 	Source Source
 }
 
@@ -51,7 +53,7 @@ type Subscriptions interface {
 
 // Subscriber is the incoming port for subscribing to a feed.
 type Subscriber interface {
-	Subscribe(userID, feedURL string) error
+	Subscribe(userID uuid.UUID, feedURL string) error
 }
 
 // SubscriptionService implements feed subscription use cases.
@@ -65,7 +67,7 @@ func NewSubscriptionService(fetcher FeedFetcher, sources Sources, subscriptions 
 	return &SubscriptionService{fetcher: fetcher, sources: sources, subscriptions: subscriptions}
 }
 
-func (s *SubscriptionService) Subscribe(userID, feedURL string) error {
+func (s *SubscriptionService) Subscribe(userID uuid.UUID, feedURL string) error {
 	feed, err := s.fetcher.Fetch(feedURL)
 	if err != nil {
 		return err

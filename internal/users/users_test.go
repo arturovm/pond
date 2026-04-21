@@ -8,6 +8,7 @@ import (
 
 	"github.com/arturovm/pond/internal/pond"
 	"github.com/arturovm/pond/internal/users"
+	"github.com/google/uuid"
 )
 
 func openTestDB(t *testing.T) *sql.DB {
@@ -30,7 +31,7 @@ func openTestDB(t *testing.T) *sql.DB {
 func TestSQLiteUsers_Save_PersistsUserInDB(t *testing.T) {
 	db := openTestDB(t)
 	repo := users.NewSQLite(db)
-	u := pond.User{ID: "01960000-0000-7000-8000-000000000001", Username: "alice"}
+	u := pond.User{ID: uuid.MustParse("01960000-0000-7000-8000-000000000001"), Username: "alice"}
 
 	err := repo.Save(u)
 
@@ -38,12 +39,12 @@ func TestSQLiteUsers_Save_PersistsUserInDB(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	var gotID, gotUsername string
-	err = db.QueryRow(`SELECT id, username FROM users WHERE id = ?`, u.ID).Scan(&gotID, &gotUsername)
+	err = db.QueryRow(`SELECT id, username FROM users WHERE id = ?`, u.ID.String()).Scan(&gotID, &gotUsername)
 	if err != nil {
 		t.Fatalf("row not found: %v", err)
 	}
-	if gotID != u.ID {
-		t.Errorf("expected id %q, got %q", u.ID, gotID)
+	if gotID != u.ID.String() {
+		t.Errorf("expected id %q, got %q", u.ID.String(), gotID)
 	}
 	if gotUsername != u.Username {
 		t.Errorf("expected username %q, got %q", u.Username, gotUsername)
@@ -55,7 +56,7 @@ func TestSQLiteUsers_Save_DBFailure_ReturnsError(t *testing.T) {
 	repo := users.NewSQLite(db)
 	db.Close()
 
-	err := repo.Save(pond.User{ID: "01960000-0000-7000-8000-000000000001", Username: "alice"})
+	err := repo.Save(pond.User{ID: uuid.MustParse("01960000-0000-7000-8000-000000000001"), Username: "alice"})
 
 	if err == nil {
 		t.Error("expected an error when DB is closed, got nil")

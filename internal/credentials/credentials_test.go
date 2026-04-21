@@ -8,6 +8,7 @@ import (
 
 	"github.com/arturovm/pond/internal/credentials"
 	"github.com/arturovm/pond/internal/pond"
+	"github.com/google/uuid"
 )
 
 func openTestDB(t *testing.T) *sql.DB {
@@ -33,7 +34,7 @@ func TestSQLiteCredentials_Save_DBFailure_ReturnsError(t *testing.T) {
 	repo := credentials.NewSQLite(db)
 	db.Close()
 
-	err := repo.Save(pond.Credential{UserID: "01960000-0000-7000-8000-000000000001", Hash: []byte("h"), Salt: []byte("s")})
+	err := repo.Save(pond.Credential{UserID: uuid.MustParse("01960000-0000-7000-8000-000000000001"), Hash: []byte("h"), Salt: []byte("s")})
 
 	if err == nil {
 		t.Error("expected an error when DB is closed, got nil")
@@ -44,7 +45,7 @@ func TestSQLiteCredentials_Save_PersistsCredentialInDB(t *testing.T) {
 	db := openTestDB(t)
 	repo := credentials.NewSQLite(db)
 	c := pond.Credential{
-		UserID: "01960000-0000-7000-8000-000000000001",
+		UserID: uuid.MustParse("01960000-0000-7000-8000-000000000001"),
 		Hash:   []byte("hashvalue"),
 		Salt:   []byte("saltvalue"),
 	}
@@ -56,13 +57,13 @@ func TestSQLiteCredentials_Save_PersistsCredentialInDB(t *testing.T) {
 	}
 	var gotUserID string
 	var gotHash, gotSalt []byte
-	err = db.QueryRow(`SELECT user_id, hash, salt FROM credentials WHERE user_id = ?`, c.UserID).
+	err = db.QueryRow(`SELECT user_id, hash, salt FROM credentials WHERE user_id = ?`, c.UserID.String()).
 		Scan(&gotUserID, &gotHash, &gotSalt)
 	if err != nil {
 		t.Fatalf("row not found: %v", err)
 	}
-	if gotUserID != c.UserID {
-		t.Errorf("expected user_id %q, got %q", c.UserID, gotUserID)
+	if gotUserID != c.UserID.String() {
+		t.Errorf("expected user_id %q, got %q", c.UserID.String(), gotUserID)
 	}
 	if string(gotHash) != string(c.Hash) {
 		t.Errorf("expected hash %q, got %q", c.Hash, gotHash)

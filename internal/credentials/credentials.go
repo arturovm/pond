@@ -22,7 +22,7 @@ var _ pond.Credentials = (*SQLite)(nil)
 func (s *SQLite) Save(c pond.Credential) error {
 	_, err := s.db.Exec(
 		`INSERT INTO credentials (user_id, hash, salt) VALUES (?, ?, ?)`,
-		c.UserID, c.Hash, c.Salt,
+		c.UserID.String(), c.Hash, c.Salt,
 	)
 	return err
 }

@@ -11,13 +11,14 @@ import (
 
 	"github.com/arturovm/pond/internal/api"
 	"github.com/arturovm/pond/internal/pond"
+	"github.com/google/uuid"
 )
 
 type mockSubscriber struct {
 	calledWith string
 }
 
-func (m *mockSubscriber) Subscribe(userID, feedURL string) error {
+func (m *mockSubscriber) Subscribe(userID uuid.UUID, feedURL string) error {
 	m.calledWith = feedURL
 	return nil
 }
@@ -28,7 +29,7 @@ type errorSubscriber struct {
 	err error
 }
 
-func (e *errorSubscriber) Subscribe(userID, feedURL string) error {
+func (e *errorSubscriber) Subscribe(userID uuid.UUID, feedURL string) error {
 	return e.err
 }
 

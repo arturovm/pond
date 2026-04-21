@@ -2,6 +2,7 @@ package api_test
 
 import (
 	"bytes"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -19,10 +20,10 @@ type mockAccountCreator struct {
 	calledWithUsername string
 	calledWithPassword string
 	calledWithIP       netip.Addr
-	token              string
+	token              []byte
 }
 
-func (m *mockAccountCreator) CreateAccount(username, password string, ip netip.Addr) (string, error) {
+func (m *mockAccountCreator) CreateAccount(username, password string, ip netip.Addr) ([]byte, error) {
 	m.calledWithUsername = username
 	m.calledWithPassword = password
 	m.calledWithIP = ip
@@ -35,8 +36,8 @@ type errorAccountCreator struct {
 	err error
 }
 
-func (e *errorAccountCreator) CreateAccount(_, _ string, _ netip.Addr) (string, error) {
-	return "", e.err
+func (e *errorAccountCreator) CreateAccount(_, _ string, _ netip.Addr) ([]byte, error) {
+	return nil, e.err
 }
 
 var _ pond.AccountCreator = (*errorAccountCreator)(nil)
@@ -155,7 +156,8 @@ func TestCreateAccountHandler_MalformedJSON_ReturnsBadRequest(t *testing.T) {
 }
 
 func TestCreateAccountHandler_ValidCredentials_ReturnsSessionTokenInBody(t *testing.T) {
-	mock := &mockAccountCreator{token: "abc123token"}
+	tokenBytes := []byte("abc123token")
+	mock := &mockAccountCreator{token: tokenBytes}
 	handler := api.NewCreateAccountHandler(mock, slog.Default())
 
 	body := strings.NewReader(`{"username":"alice","password":"secret"}`)
@@ -171,8 +173,9 @@ func TestCreateAccountHandler_ValidCredentials_ReturnsSessionTokenInBody(t *test
 	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 		t.Fatalf("failed to decode response body: %v", err)
 	}
-	if resp.SessionToken != "abc123token" {
-		t.Errorf("expected session_token %q, got %q", "abc123token", resp.SessionToken)
+	want := hex.EncodeToString(tokenBytes)
+	if resp.SessionToken != want {
+		t.Errorf("expected session_token %q, got %q", want, resp.SessionToken)
 	}
 }
 
