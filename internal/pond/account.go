@@ -18,6 +18,9 @@ type User struct {
 // ErrUsernameTaken is returned when a username already exists.
 var ErrUsernameTaken = errors.New("username taken")
 
+// ErrInvalidCredentials is returned when login credentials are incorrect.
+var ErrInvalidCredentials = errors.New("invalid credentials")
+
 // Credential holds the hashed password material for a user.
 type Credential struct {
 	UserID uuid.UUID
@@ -55,6 +58,11 @@ type Sessions interface {
 // AccountCreator is the incoming port for creating an account.
 type AccountCreator interface {
 	CreateAccount(username, password string, ip netip.Addr) ([]byte, error)
+}
+
+// Authenticator is the incoming port for logging in.
+type Authenticator interface {
+	Authenticate(username, password string, ip netip.Addr) ([]byte, error)
 }
 
 // AccountService implements account management use cases.
