@@ -21,6 +21,9 @@ var ErrUsernameTaken = errors.New("username taken")
 // ErrInvalidCredentials is returned when login credentials are incorrect.
 var ErrInvalidCredentials = errors.New("invalid credentials")
 
+// ErrUserNotFound is returned when a user cannot be found by username.
+var ErrUserNotFound = errors.New("user not found")
+
 // Credential holds the hashed password material for a user.
 type Credential struct {
 	UserID uuid.UUID
@@ -43,6 +46,7 @@ type Session struct {
 type Users interface {
 	Exists(username string) (bool, error)
 	Save(User) error
+	FindByUsername(username string) (User, error)
 }
 
 // Credentials is the outgoing port for persisting credentials.
@@ -74,6 +78,17 @@ type AccountService struct {
 
 func NewAccountService(users Users, credentials Credentials, sessions Sessions) *AccountService {
 	return &AccountService{users: users, credentials: credentials, sessions: sessions}
+}
+
+func (s *AccountService) Authenticate(username, password string, ip netip.Addr) ([]byte, error) {
+	_, err := s.users.FindByUsername(username)
+	if errors.Is(err, ErrUserNotFound) {
+		return nil, ErrInvalidCredentials
+	}
+	if err != nil {
+		return nil, err
+	}
+	return nil, nil
 }
 
 func (s *AccountService) CreateAccount(username, password string, ip netip.Addr) ([]byte, error) {

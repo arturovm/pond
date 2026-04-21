@@ -2,6 +2,7 @@ package users_test
 
 import (
 	"database/sql"
+	"errors"
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -90,6 +91,51 @@ func TestSQLiteUsers_Exists_KnownUsername_ReturnsTrue(t *testing.T) {
 	}
 	if !exists {
 		t.Error("expected true for known username, got false")
+	}
+}
+
+func TestSQLiteUsers_FindByUsername_DBFailure_ReturnsError(t *testing.T) {
+	db := openTestDB(t)
+	repo := users.NewSQLite(db)
+	db.Close()
+
+	_, err := repo.FindByUsername("alice")
+
+	if err == nil {
+		t.Error("expected an error when DB is closed, got nil")
+	}
+}
+
+func TestSQLiteUsers_FindByUsername_UnknownUsername_ReturnsErrUserNotFound(t *testing.T) {
+	db := openTestDB(t)
+	repo := users.NewSQLite(db)
+
+	_, err := repo.FindByUsername("alice")
+
+	if !errors.Is(err, pond.ErrUserNotFound) {
+		t.Errorf("expected ErrUserNotFound, got %v", err)
+	}
+}
+
+func TestSQLiteUsers_FindByUsername_KnownUsername_ReturnsUser(t *testing.T) {
+	db := openTestDB(t)
+	repo := users.NewSQLite(db)
+	id := uuid.MustParse("01960000-0000-7000-8000-000000000001")
+	_, err := db.Exec(`INSERT INTO users (id, username) VALUES (?, ?)`, id.String(), "alice")
+	if err != nil {
+		t.Fatalf("failed to seed user: %v", err)
+	}
+
+	u, err := repo.FindByUsername("alice")
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if u.ID != id {
+		t.Errorf("expected ID %v, got %v", id, u.ID)
+	}
+	if u.Username != "alice" {
+		t.Errorf("expected username %q, got %q", "alice", u.Username)
 	}
 }
 

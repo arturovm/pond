@@ -11,10 +11,13 @@ import (
 )
 
 type mockUsers struct {
-	exists  bool
-	err     error
-	saved   pond.User
-	saveErr error
+	exists              bool
+	err                 error
+	saved               pond.User
+	saveErr             error
+	foundUser           pond.User
+	findErr             error
+	findCalledWith      string
 }
 
 func (m *mockUsers) Exists(username string) (bool, error) {
@@ -24,6 +27,11 @@ func (m *mockUsers) Exists(username string) (bool, error) {
 func (m *mockUsers) Save(u pond.User) error {
 	m.saved = u
 	return m.saveErr
+}
+
+func (m *mockUsers) FindByUsername(username string) (pond.User, error) {
+	m.findCalledWith = username
+	return m.foundUser, m.findErr
 }
 
 var _ pond.Users = (*mockUsers)(nil)
@@ -279,6 +287,40 @@ func TestAccountService_CreateAccount_SavesSessionWithMatchingUserID(t *testing.
 	}
 	if sessions.saved.UserID != users.saved.ID {
 		t.Errorf("expected saved session UserID %q to match user ID %q", sessions.saved.UserID, users.saved.ID)
+	}
+}
+
+func TestAccountService_Authenticate_UsersPortError_PropagatesError(t *testing.T) {
+	portErr := errors.New("db failed")
+	users := &mockUsers{findErr: portErr}
+	s := pond.NewAccountService(users, nil, nil)
+
+	_, err := s.Authenticate("alice", "secret", netip.Addr{})
+
+	if !errors.Is(err, portErr) {
+		t.Errorf("expected %v, got %v", portErr, err)
+	}
+}
+
+func TestAccountService_Authenticate_KnownUsername_CallsFindByUsername(t *testing.T) {
+	users := &mockUsers{foundUser: pond.User{ID: uuid.MustParse("01960000-0000-7000-8000-000000000001"), Username: "alice"}}
+	s := pond.NewAccountService(users, nil, nil)
+
+	s.Authenticate("alice", "secret", netip.Addr{})
+
+	if users.findCalledWith != "alice" {
+		t.Errorf("expected FindByUsername called with %q, got %q", "alice", users.findCalledWith)
+	}
+}
+
+func TestAccountService_Authenticate_UnknownUsername_ReturnsErrInvalidCredentials(t *testing.T) {
+	users := &mockUsers{findErr: pond.ErrUserNotFound}
+	s := pond.NewAccountService(users, nil, nil)
+
+	_, err := s.Authenticate("alice", "secret", netip.Addr{})
+
+	if !errors.Is(err, pond.ErrInvalidCredentials) {
+		t.Errorf("expected ErrInvalidCredentials, got %v", err)
 	}
 }
 

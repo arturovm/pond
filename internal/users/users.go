@@ -2,8 +2,10 @@ package users
 
 import (
 	"database/sql"
+	"errors"
 
 	"github.com/arturovm/pond/internal/pond"
+	"github.com/google/uuid"
 )
 
 // SQLite is a SQLite-backed adapter for the pond.Users port.
@@ -35,4 +37,24 @@ func (s *SQLite) Save(u pond.User) error {
 		u.ID.String(), u.Username,
 	)
 	return err
+}
+
+// FindByUsername retrieves a user by username.
+func (s *SQLite) FindByUsername(username string) (pond.User, error) {
+	var idStr, uname string
+	err := s.db.QueryRow(
+		`SELECT id, username FROM users WHERE username = ?`,
+		username,
+	).Scan(&idStr, &uname)
+	if errors.Is(err, sql.ErrNoRows) {
+		return pond.User{}, pond.ErrUserNotFound
+	}
+	if err != nil {
+		return pond.User{}, err
+	}
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return pond.User{}, err
+	}
+	return pond.User{ID: id, Username: uname}, nil
 }
