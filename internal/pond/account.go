@@ -82,6 +82,14 @@ func NewAccountService(users Users, credentials Credentials, sessions Sessions) 
 	return &AccountService{users: users, credentials: credentials, sessions: sessions}
 }
 
+func generateToken() ([]byte, error) {
+	token := make([]byte, 16)
+	if _, err := rand.Read(token); err != nil {
+		return nil, err
+	}
+	return token, nil
+}
+
 func (s *AccountService) Authenticate(username, password string, ip netip.Addr) ([]byte, error) {
 	user, err := s.users.FindByUsername(username)
 	if errors.Is(err, ErrUserNotFound) {
@@ -98,7 +106,15 @@ func (s *AccountService) Authenticate(username, password string, ip netip.Addr) 
 	if subtle.ConstantTimeCompare(hash, cred.Hash) != 1 {
 		return nil, ErrInvalidCredentials
 	}
-	return []byte{1}, nil
+	token, err := generateToken()
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now()
+	if err := s.sessions.Save(Session{Token: token, UserID: user.ID, IP: ip, CreatedAt: now, ExpiresAt: now.Add(sessionDuration)}); err != nil {
+		return nil, err
+	}
+	return token, nil
 }
 
 func (s *AccountService) CreateAccount(username, password string, ip netip.Addr) ([]byte, error) {
@@ -124,8 +140,8 @@ func (s *AccountService) CreateAccount(username, password string, ip netip.Addr)
 	if err := s.credentials.Save(Credential{UserID: id, Hash: hash, Salt: salt}); err != nil {
 		return nil, err
 	}
-	token := make([]byte, 16)
-	if _, err := rand.Read(token); err != nil {
+	token, err := generateToken()
+	if err != nil {
 		return nil, err
 	}
 	now := time.Now()

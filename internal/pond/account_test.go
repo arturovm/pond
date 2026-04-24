@@ -298,6 +298,17 @@ func TestAccountService_CreateAccount_SavesSessionWithMatchingUserID(t *testing.
 	}
 }
 
+// authenticateFixture returns a users and credentials mock pre-loaded with alice's
+// credentials (password "secret"), ready for a successful Authenticate call.
+func authenticateFixture() (uuid.UUID, *mockUsers, *mockCredentials) {
+	salt := []byte("saltsaltsaltsalt")
+	hash := pond.HashPassword("secret", salt)
+	userID := uuid.MustParse("01960000-0000-7000-8000-000000000001")
+	users := &mockUsers{foundUser: pond.User{ID: userID, Username: "alice"}}
+	creds := &mockCredentials{foundCredential: pond.Credential{UserID: userID, Hash: hash, Salt: salt}}
+	return userID, users, creds
+}
+
 func TestAccountService_Authenticate_UsersPortError_PropagatesError(t *testing.T) {
 	portErr := errors.New("db failed")
 	users := &mockUsers{findErr: portErr}
@@ -359,11 +370,7 @@ func TestAccountService_Authenticate_KnownUser_CallsFindByUserID(t *testing.T) {
 }
 
 func TestAccountService_Authenticate_WrongPassword_ReturnsErrInvalidCredentials(t *testing.T) {
-	salt := []byte("saltsaltsaltsalt")
-	hash := pond.HashPassword("correct-password", salt)
-	userID := uuid.MustParse("01960000-0000-7000-8000-000000000001")
-	users := &mockUsers{foundUser: pond.User{ID: userID, Username: "alice"}}
-	creds := &mockCredentials{foundCredential: pond.Credential{UserID: userID, Hash: hash, Salt: salt}}
+	_, users, creds := authenticateFixture()
 	s := pond.NewAccountService(users, creds, nil)
 
 	_, err := s.Authenticate("alice", "wrong-password", netip.Addr{})
@@ -374,11 +381,7 @@ func TestAccountService_Authenticate_WrongPassword_ReturnsErrInvalidCredentials(
 }
 
 func TestAccountService_Authenticate_CorrectPassword_DoesNotReturnErrInvalidCredentials(t *testing.T) {
-	salt := []byte("saltsaltsaltsalt")
-	hash := pond.HashPassword("secret", salt)
-	userID := uuid.MustParse("01960000-0000-7000-8000-000000000001")
-	users := &mockUsers{foundUser: pond.User{ID: userID, Username: "alice"}}
-	creds := &mockCredentials{foundCredential: pond.Credential{UserID: userID, Hash: hash, Salt: salt}}
+	_, users, creds := authenticateFixture()
 	s := pond.NewAccountService(users, creds, &mockSessions{})
 
 	token, err := s.Authenticate("alice", "secret", netip.Addr{})
@@ -388,6 +391,112 @@ func TestAccountService_Authenticate_CorrectPassword_DoesNotReturnErrInvalidCred
 	}
 	if len(token) == 0 {
 		t.Error("expected non-empty session token for correct credentials")
+	}
+}
+
+func TestAccountService_Authenticate_TwoCallsProduceDifferentTokens(t *testing.T) {
+	_, users, creds := authenticateFixture()
+	s := pond.NewAccountService(users, creds, &mockSessions{})
+
+	token1, err := s.Authenticate("alice", "secret", netip.Addr{})
+	if err != nil {
+		t.Fatalf("unexpected error on first call: %v", err)
+	}
+	token2, err := s.Authenticate("alice", "secret", netip.Addr{})
+	if err != nil {
+		t.Fatalf("unexpected error on second call: %v", err)
+	}
+	if bytes.Equal(token1, token2) {
+		t.Error("expected two calls to produce different tokens")
+	}
+}
+
+func TestAccountService_Authenticate_CorrectCredentials_SavesSessionWithTokenAtLeast16Bytes(t *testing.T) {
+	_, users, creds := authenticateFixture()
+	sessions := &mockSessions{}
+	s := pond.NewAccountService(users, creds, sessions)
+
+	_, err := s.Authenticate("alice", "secret", netip.Addr{})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(sessions.saved.Token) < 16 {
+		t.Errorf("expected saved session token length >= 16 bytes, got %d", len(sessions.saved.Token))
+	}
+}
+
+func TestAccountService_Authenticate_CorrectCredentials_SavesSessionWithExpiresAtAfterCreatedAt(t *testing.T) {
+	_, users, creds := authenticateFixture()
+	sessions := &mockSessions{}
+	s := pond.NewAccountService(users, creds, sessions)
+
+	_, err := s.Authenticate("alice", "secret", netip.Addr{})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !sessions.saved.ExpiresAt.After(sessions.saved.CreatedAt) {
+		t.Errorf("expected ExpiresAt %v to be after CreatedAt %v", sessions.saved.ExpiresAt, sessions.saved.CreatedAt)
+	}
+}
+
+func TestAccountService_Authenticate_CorrectCredentials_SavesSessionWithNonZeroCreatedAt(t *testing.T) {
+	_, users, creds := authenticateFixture()
+	sessions := &mockSessions{}
+	s := pond.NewAccountService(users, creds, sessions)
+
+	_, err := s.Authenticate("alice", "secret", netip.Addr{})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if sessions.saved.CreatedAt.IsZero() {
+		t.Error("expected non-zero CreatedAt on saved session")
+	}
+}
+
+func TestAccountService_Authenticate_CorrectCredentials_SavesSessionWithCorrectIP(t *testing.T) {
+	_, users, creds := authenticateFixture()
+	sessions := &mockSessions{}
+	s := pond.NewAccountService(users, creds, sessions)
+	ip := netip.MustParseAddr("192.0.2.1")
+
+	_, err := s.Authenticate("alice", "secret", ip)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if sessions.saved.IP != ip {
+		t.Errorf("expected saved session IP %v, got %v", ip, sessions.saved.IP)
+	}
+}
+
+func TestAccountService_Authenticate_CorrectCredentials_SavesSessionWithMatchingUserID(t *testing.T) {
+	userID, users, creds := authenticateFixture()
+	sessions := &mockSessions{}
+	s := pond.NewAccountService(users, creds, sessions)
+
+	_, err := s.Authenticate("alice", "secret", netip.Addr{})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if sessions.saved.UserID != userID {
+		t.Errorf("expected saved session UserID %v, got %v", userID, sessions.saved.UserID)
+	}
+}
+
+func TestAccountService_Authenticate_SessionsPortError_PropagatesError(t *testing.T) {
+	_, users, creds := authenticateFixture()
+	sessErr := errors.New("sessions save failed")
+	sessions := &mockSessions{saveErr: sessErr}
+	s := pond.NewAccountService(users, creds, sessions)
+
+	_, err := s.Authenticate("alice", "secret", netip.Addr{})
+
+	if !errors.Is(err, sessErr) {
+		t.Errorf("expected %v, got %v", sessErr, err)
 	}
 }
 
