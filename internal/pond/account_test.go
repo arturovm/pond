@@ -37,13 +37,21 @@ func (m *mockUsers) FindByUsername(username string) (pond.User, error) {
 var _ pond.Users = (*mockUsers)(nil)
 
 type mockCredentials struct {
-	saved   pond.Credential
-	saveErr error
+	saved            pond.Credential
+	saveErr          error
+	foundCredential  pond.Credential
+	findErr          error
+	findCalledWithID uuid.UUID
 }
 
 func (m *mockCredentials) Save(c pond.Credential) error {
 	m.saved = c
 	return m.saveErr
+}
+
+func (m *mockCredentials) FindByUserID(userID uuid.UUID) (pond.Credential, error) {
+	m.findCalledWithID = userID
+	return m.foundCredential, m.findErr
 }
 
 var _ pond.Credentials = (*mockCredentials)(nil)
@@ -304,7 +312,7 @@ func TestAccountService_Authenticate_UsersPortError_PropagatesError(t *testing.T
 
 func TestAccountService_Authenticate_KnownUsername_CallsFindByUsername(t *testing.T) {
 	users := &mockUsers{foundUser: pond.User{ID: uuid.MustParse("01960000-0000-7000-8000-000000000001"), Username: "alice"}}
-	s := pond.NewAccountService(users, nil, nil)
+	s := pond.NewAccountService(users, &mockCredentials{}, nil)
 
 	s.Authenticate("alice", "secret", netip.Addr{})
 
@@ -321,6 +329,32 @@ func TestAccountService_Authenticate_UnknownUsername_ReturnsErrInvalidCredential
 
 	if !errors.Is(err, pond.ErrInvalidCredentials) {
 		t.Errorf("expected ErrInvalidCredentials, got %v", err)
+	}
+}
+
+func TestAccountService_Authenticate_CredentialsPortError_PropagatesError(t *testing.T) {
+	credErr := errors.New("db failed")
+	users := &mockUsers{foundUser: pond.User{ID: uuid.MustParse("01960000-0000-7000-8000-000000000001"), Username: "alice"}}
+	creds := &mockCredentials{findErr: credErr}
+	s := pond.NewAccountService(users, creds, nil)
+
+	_, err := s.Authenticate("alice", "secret", netip.Addr{})
+
+	if !errors.Is(err, credErr) {
+		t.Errorf("expected %v, got %v", credErr, err)
+	}
+}
+
+func TestAccountService_Authenticate_KnownUser_CallsFindByUserID(t *testing.T) {
+	userID := uuid.MustParse("01960000-0000-7000-8000-000000000001")
+	users := &mockUsers{foundUser: pond.User{ID: userID, Username: "alice"}}
+	creds := &mockCredentials{}
+	s := pond.NewAccountService(users, creds, nil)
+
+	s.Authenticate("alice", "secret", netip.Addr{})
+
+	if creds.findCalledWithID != userID {
+		t.Errorf("expected FindByUserID called with %v, got %v", userID, creds.findCalledWithID)
 	}
 }
 

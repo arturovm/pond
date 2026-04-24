@@ -52,6 +52,7 @@ type Users interface {
 // Credentials is the outgoing port for persisting credentials.
 type Credentials interface {
 	Save(Credential) error
+	FindByUserID(userID uuid.UUID) (Credential, error)
 }
 
 // Sessions is the outgoing port for persisting sessions.
@@ -81,11 +82,14 @@ func NewAccountService(users Users, credentials Credentials, sessions Sessions) 
 }
 
 func (s *AccountService) Authenticate(username, password string, ip netip.Addr) ([]byte, error) {
-	_, err := s.users.FindByUsername(username)
+	user, err := s.users.FindByUsername(username)
 	if errors.Is(err, ErrUserNotFound) {
 		return nil, ErrInvalidCredentials
 	}
 	if err != nil {
+		return nil, err
+	}
+	if _, err := s.credentials.FindByUserID(user.ID); err != nil {
 		return nil, err
 	}
 	return nil, nil

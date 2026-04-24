@@ -29,6 +29,55 @@ func openTestDB(t *testing.T) *sql.DB {
 	return db
 }
 
+func TestSQLiteCredentials_FindByUserID_ReturnsCredential(t *testing.T) {
+	db := openTestDB(t)
+	repo := credentials.NewSQLite(db)
+	userID := uuid.MustParse("01960000-0000-7000-8000-000000000001")
+	_, err := db.Exec(`INSERT INTO credentials (user_id, hash, salt) VALUES (?, ?, ?)`, userID.String(), []byte("hashvalue"), []byte("saltvalue"))
+	if err != nil {
+		t.Fatalf("failed to insert test credential: %v", err)
+	}
+
+	got, err := repo.FindByUserID(userID)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.UserID != userID {
+		t.Errorf("expected UserID %v, got %v", userID, got.UserID)
+	}
+	if string(got.Hash) != "hashvalue" {
+		t.Errorf("expected Hash %q, got %q", "hashvalue", got.Hash)
+	}
+	if string(got.Salt) != "saltvalue" {
+		t.Errorf("expected Salt %q, got %q", "saltvalue", got.Salt)
+	}
+}
+
+func TestSQLiteCredentials_FindByUserID_DBFailure_ReturnsError(t *testing.T) {
+	db := openTestDB(t)
+	repo := credentials.NewSQLite(db)
+	db.Close()
+
+	_, err := repo.FindByUserID(uuid.MustParse("01960000-0000-7000-8000-000000000001"))
+
+	if err == nil {
+		t.Error("expected an error when DB is closed, got nil")
+	}
+}
+
+func TestSQLiteCredentials_FindByUserID_NotFound_ReturnsError(t *testing.T) {
+	db := openTestDB(t)
+	repo := credentials.NewSQLite(db)
+	userID := uuid.MustParse("01960000-0000-7000-8000-000000000001")
+
+	_, err := repo.FindByUserID(userID)
+
+	if err == nil {
+		t.Error("expected an error when credential not found, got nil")
+	}
+}
+
 func TestSQLiteCredentials_Save_DBFailure_ReturnsError(t *testing.T) {
 	db := openTestDB(t)
 	repo := credentials.NewSQLite(db)
