@@ -18,7 +18,23 @@ CREATE TABLE subscriptions (
     UNIQUE(user_id, source_link)
 );
 
+CREATE TABLE credentials (
+    user_id TEXT PRIMARY KEY,
+    hash    BLOB NOT NULL,
+    salt    BLOB NOT NULL
+);
+
+CREATE TABLE sessions (
+    token      BLOB PRIMARY KEY,
+    user_id    TEXT NOT NULL,
+    ip         TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL
+);
+
 -- +goose Down
+DROP TABLE sessions;
+DROP TABLE credentials;
 DROP TABLE subscriptions;
 DROP TABLE sources;
 DROP TABLE users;
