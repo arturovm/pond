@@ -9,11 +9,14 @@ import (
 
 	"github.com/arturovm/pond/internal/api"
 	"github.com/arturovm/pond/internal/conf"
+	"github.com/arturovm/pond/internal/credentials"
 	"github.com/arturovm/pond/internal/database"
 	"github.com/arturovm/pond/internal/fetcher"
 	"github.com/arturovm/pond/internal/pond"
+	"github.com/arturovm/pond/internal/sessions"
 	"github.com/arturovm/pond/internal/sources"
 	"github.com/arturovm/pond/internal/subscriptions"
+	"github.com/arturovm/pond/internal/users"
 )
 
 func main() {
@@ -52,6 +55,11 @@ func main() {
 	}
 
 	// wire adapters and domain
+	accountService := pond.NewAccountService(
+		users.NewSQLite(db),
+		credentials.NewSQLite(db),
+		sessions.NewSQLite(db),
+	)
 	subscriptionService := pond.NewSubscriptionService(
 		fetcher.NewHTTPFetcher(),
 		sources.NewSQLite(db),
@@ -61,7 +69,7 @@ func main() {
 	// start server
 	addr := net.JoinHostPort(conf.Addr, fmt.Sprintf("%d", conf.Port))
 	slog.Info("server starting", "addr", addr)
-	if err := http.ListenAndServe(addr, api.NewRouter(subscriptionService, slog.Default())); err != nil {
+	if err := http.ListenAndServe(addr, api.NewRouter(subscriptionService, accountService, accountService, slog.Default())); err != nil {
 		slog.Error("server error", "error", err)
 		os.Exit(1)
 	}
