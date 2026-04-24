@@ -1,13 +1,10 @@
 package api
 
 import (
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"log/slog"
-	"net"
 	"net/http"
-	"net/netip"
 
 	"github.com/arturovm/pond/internal/pond"
 )
@@ -38,11 +35,7 @@ func (h *CreateAccountHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
-	var ip netip.Addr
-	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
-		ip, _ = netip.ParseAddr(host)
-	}
-	token, err := h.accountCreator.CreateAccount(body.Username, body.Password, ip)
+	token, err := h.accountCreator.CreateAccount(body.Username, body.Password, parseClientIP(r))
 	if err != nil {
 		if errors.Is(err, pond.ErrUsernameTaken) {
 			http.Error(w, "username taken", http.StatusConflict)
@@ -52,9 +45,5 @@ func (h *CreateAccountHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusAccepted)
-	json.NewEncoder(w).Encode(struct {
-		SessionToken string `json:"session_token"`
-	}{SessionToken: hex.EncodeToString(token)})
+	writeTokenResponse(w, token)
 }

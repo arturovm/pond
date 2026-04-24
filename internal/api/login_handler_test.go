@@ -46,12 +46,7 @@ func TestLoginHandler_EmptyUsername_ReturnsBadRequest(t *testing.T) {
 	mock := &mockAuthenticator{}
 	handler := api.NewLoginHandler(mock, slog.Default())
 
-	body := strings.NewReader(`{"username":"","password":"secret"}`)
-	req := httptest.NewRequest(http.MethodPost, "/sessions", body)
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-
-	handler.ServeHTTP(rec, req)
+	rec := doPost(t, handler, `{"username":"","password":"secret"}`)
 
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
@@ -65,12 +60,7 @@ func TestLoginHandler_EmptyPassword_ReturnsBadRequest(t *testing.T) {
 	mock := &mockAuthenticator{}
 	handler := api.NewLoginHandler(mock, slog.Default())
 
-	body := strings.NewReader(`{"username":"alice","password":""}`)
-	req := httptest.NewRequest(http.MethodPost, "/sessions", body)
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-
-	handler.ServeHTTP(rec, req)
+	rec := doPost(t, handler, `{"username":"alice","password":""}`)
 
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
@@ -85,12 +75,7 @@ func TestLoginHandler_PortError_LogsAndReturns500(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&buf, nil))
 	handler := api.NewLoginHandler(&errorAuthenticator{err: errors.New("db failed")}, logger)
 
-	body := strings.NewReader(`{"username":"alice","password":"secret"}`)
-	req := httptest.NewRequest(http.MethodPost, "/sessions", body)
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-
-	handler.ServeHTTP(rec, req)
+	rec := doPost(t, handler, `{"username":"alice","password":"secret"}`)
 
 	if rec.Code != http.StatusInternalServerError {
 		t.Errorf("expected status %d, got %d", http.StatusInternalServerError, rec.Code)
@@ -104,12 +89,10 @@ func TestLoginHandler_ForwardsClientIP(t *testing.T) {
 	mock := &mockAuthenticator{}
 	handler := api.NewLoginHandler(mock, slog.Default())
 
-	body := strings.NewReader(`{"username":"alice","password":"secret"}`)
-	req := httptest.NewRequest(http.MethodPost, "/sessions", body)
+	req := httptest.NewRequest(http.MethodPost, "/sessions", strings.NewReader(`{"username":"alice","password":"secret"}`))
 	req.Header.Set("Content-Type", "application/json")
 	req.RemoteAddr = "192.0.2.1:4321"
 	rec := httptest.NewRecorder()
-
 	handler.ServeHTTP(rec, req)
 
 	want := netip.MustParseAddr("192.0.2.1")
@@ -121,12 +104,7 @@ func TestLoginHandler_ForwardsClientIP(t *testing.T) {
 func TestLoginHandler_InvalidCredentials_Returns401(t *testing.T) {
 	handler := api.NewLoginHandler(&errorAuthenticator{err: pond.ErrInvalidCredentials}, slog.Default())
 
-	body := strings.NewReader(`{"username":"alice","password":"wrong"}`)
-	req := httptest.NewRequest(http.MethodPost, "/sessions", body)
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-
-	handler.ServeHTTP(rec, req)
+	rec := doPost(t, handler, `{"username":"alice","password":"wrong"}`)
 
 	if rec.Code != http.StatusUnauthorized {
 		t.Errorf("expected status %d, got %d", http.StatusUnauthorized, rec.Code)
@@ -137,12 +115,7 @@ func TestLoginHandler_MalformedJSON_ReturnsBadRequest(t *testing.T) {
 	mock := &mockAuthenticator{}
 	handler := api.NewLoginHandler(mock, slog.Default())
 
-	body := strings.NewReader(`not json`)
-	req := httptest.NewRequest(http.MethodPost, "/sessions", body)
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-
-	handler.ServeHTTP(rec, req)
+	rec := doPost(t, handler, `not json`)
 
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
@@ -157,12 +130,7 @@ func TestLoginHandler_ValidCredentials_ForwardsToPortAndReturns202WithToken(t *t
 	mock := &mockAuthenticator{token: tokenBytes}
 	handler := api.NewLoginHandler(mock, slog.Default())
 
-	body := strings.NewReader(`{"username":"alice","password":"secret"}`)
-	req := httptest.NewRequest(http.MethodPost, "/sessions", body)
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-
-	handler.ServeHTTP(rec, req)
+	rec := doPost(t, handler, `{"username":"alice","password":"secret"}`)
 
 	if rec.Code != http.StatusAccepted {
 		t.Errorf("expected status %d, got %d", http.StatusAccepted, rec.Code)

@@ -14,6 +14,15 @@ import (
 	"github.com/google/uuid"
 )
 
+func doPost(t *testing.T, handler http.Handler, jsonBody string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	return rec
+}
+
 type mockSubscriber struct {
 	calledWith string
 }
@@ -39,12 +48,7 @@ func TestSubscribeHandler_MalformedJSON_ReturnsBadRequest(t *testing.T) {
 	mock := &mockSubscriber{}
 	handler := api.NewSubscribeHandler(mock, slog.Default())
 
-	body := strings.NewReader(`not json`)
-	req := httptest.NewRequest(http.MethodPost, "/subscriptions", body)
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-
-	handler.ServeHTTP(rec, req)
+	rec := doPost(t, handler, `not json`)
 
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
@@ -55,12 +59,7 @@ func TestSubscribeHandler_EmptyURL_ReturnsBadRequest(t *testing.T) {
 	mock := &mockSubscriber{}
 	handler := api.NewSubscribeHandler(mock, slog.Default())
 
-	body := strings.NewReader(`{"url":""}`)
-	req := httptest.NewRequest(http.MethodPost, "/subscriptions", body)
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-
-	handler.ServeHTTP(rec, req)
+	rec := doPost(t, handler, `{"url":""}`)
 
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
@@ -74,12 +73,7 @@ func TestSubscribeHandler_MalformedURL_ReturnsBadRequest(t *testing.T) {
 	mock := &mockSubscriber{}
 	handler := api.NewSubscribeHandler(mock, slog.Default())
 
-	body := strings.NewReader(`{"url":"not a url"}`)
-	req := httptest.NewRequest(http.MethodPost, "/subscriptions", body)
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-
-	handler.ServeHTTP(rec, req)
+	rec := doPost(t, handler, `{"url":"not a url"}`)
 
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
@@ -95,12 +89,7 @@ func TestSubscribeHandler_SubscribeError_LogsError(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&buf, nil))
 	handler := api.NewSubscribeHandler(sub, logger)
 
-	body := strings.NewReader(`{"url":"https://example.com/feed.rss"}`)
-	req := httptest.NewRequest(http.MethodPost, "/subscriptions", body)
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-
-	handler.ServeHTTP(rec, req)
+	doPost(t, handler, `{"url":"https://example.com/feed.rss"}`)
 
 	if !strings.Contains(buf.String(), "fetch failed") {
 		t.Errorf("expected log to contain error message, got: %s", buf.String())
@@ -111,12 +100,7 @@ func TestSubscribeHandler_ValidURL_ForwardsToPort(t *testing.T) {
 	mock := &mockSubscriber{}
 	handler := api.NewSubscribeHandler(mock, slog.Default())
 
-	body := strings.NewReader(`{"url":"https://example.com/feed.rss"}`)
-	req := httptest.NewRequest(http.MethodPost, "/subscriptions", body)
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-
-	handler.ServeHTTP(rec, req)
+	rec := doPost(t, handler, `{"url":"https://example.com/feed.rss"}`)
 
 	if rec.Code != http.StatusAccepted {
 		t.Errorf("expected status %d, got %d", http.StatusAccepted, rec.Code)

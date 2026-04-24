@@ -46,12 +46,7 @@ func TestCreateAccountHandler_UsernameTaken_Returns409(t *testing.T) {
 	ac := &errorAccountCreator{err: pond.ErrUsernameTaken}
 	handler := api.NewCreateAccountHandler(ac, slog.Default())
 
-	body := strings.NewReader(`{"username":"alice","password":"secret"}`)
-	req := httptest.NewRequest(http.MethodPost, "/accounts", body)
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-
-	handler.ServeHTTP(rec, req)
+	rec := doPost(t, handler, `{"username":"alice","password":"secret"}`)
 
 	if rec.Code != http.StatusConflict {
 		t.Errorf("expected status %d, got %d", http.StatusConflict, rec.Code)
@@ -64,12 +59,7 @@ func TestCreateAccountHandler_PortError_LogsAndReturns500(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&buf, nil))
 	handler := api.NewCreateAccountHandler(ac, logger)
 
-	body := strings.NewReader(`{"username":"alice","password":"secret"}`)
-	req := httptest.NewRequest(http.MethodPost, "/accounts", body)
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-
-	handler.ServeHTTP(rec, req)
+	rec := doPost(t, handler, `{"username":"alice","password":"secret"}`)
 
 	if rec.Code != http.StatusInternalServerError {
 		t.Errorf("expected status %d, got %d", http.StatusInternalServerError, rec.Code)
@@ -83,12 +73,7 @@ func TestCreateAccountHandler_EmptyUsername_ReturnsBadRequest(t *testing.T) {
 	mock := &mockAccountCreator{}
 	handler := api.NewCreateAccountHandler(mock, slog.Default())
 
-	body := strings.NewReader(`{"username":"","password":"secret"}`)
-	req := httptest.NewRequest(http.MethodPost, "/accounts", body)
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-
-	handler.ServeHTTP(rec, req)
+	rec := doPost(t, handler, `{"username":"","password":"secret"}`)
 
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
@@ -102,12 +87,7 @@ func TestCreateAccountHandler_EmptyPassword_ReturnsBadRequest(t *testing.T) {
 	mock := &mockAccountCreator{}
 	handler := api.NewCreateAccountHandler(mock, slog.Default())
 
-	body := strings.NewReader(`{"username":"alice","password":""}`)
-	req := httptest.NewRequest(http.MethodPost, "/accounts", body)
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-
-	handler.ServeHTTP(rec, req)
+	rec := doPost(t, handler, `{"username":"alice","password":""}`)
 
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
@@ -121,12 +101,7 @@ func TestCreateAccountHandler_ValidCredentials_ForwardsToPort(t *testing.T) {
 	mock := &mockAccountCreator{}
 	handler := api.NewCreateAccountHandler(mock, slog.Default())
 
-	body := strings.NewReader(`{"username":"alice","password":"secret"}`)
-	req := httptest.NewRequest(http.MethodPost, "/accounts", body)
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-
-	handler.ServeHTTP(rec, req)
+	rec := doPost(t, handler, `{"username":"alice","password":"secret"}`)
 
 	if rec.Code != http.StatusAccepted {
 		t.Errorf("expected status %d, got %d", http.StatusAccepted, rec.Code)
@@ -143,12 +118,7 @@ func TestCreateAccountHandler_MalformedJSON_ReturnsBadRequest(t *testing.T) {
 	mock := &mockAccountCreator{}
 	handler := api.NewCreateAccountHandler(mock, slog.Default())
 
-	body := strings.NewReader(`not json`)
-	req := httptest.NewRequest(http.MethodPost, "/accounts", body)
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-
-	handler.ServeHTTP(rec, req)
+	rec := doPost(t, handler, `not json`)
 
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
@@ -160,12 +130,7 @@ func TestCreateAccountHandler_ValidCredentials_ReturnsSessionTokenInBody(t *test
 	mock := &mockAccountCreator{token: tokenBytes}
 	handler := api.NewCreateAccountHandler(mock, slog.Default())
 
-	body := strings.NewReader(`{"username":"alice","password":"secret"}`)
-	req := httptest.NewRequest(http.MethodPost, "/accounts", body)
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-
-	handler.ServeHTTP(rec, req)
+	rec := doPost(t, handler, `{"username":"alice","password":"secret"}`)
 
 	var resp struct {
 		SessionToken string `json:"session_token"`
@@ -183,12 +148,10 @@ func TestCreateAccountHandler_ForwardsClientIP(t *testing.T) {
 	mock := &mockAccountCreator{}
 	handler := api.NewCreateAccountHandler(mock, slog.Default())
 
-	body := strings.NewReader(`{"username":"alice","password":"secret"}`)
-	req := httptest.NewRequest(http.MethodPost, "/accounts", body)
+	req := httptest.NewRequest(http.MethodPost, "/accounts", strings.NewReader(`{"username":"alice","password":"secret"}`))
 	req.Header.Set("Content-Type", "application/json")
 	req.RemoteAddr = "192.0.2.1:4321"
 	rec := httptest.NewRecorder()
-
 	handler.ServeHTTP(rec, req)
 
 	want := netip.MustParseAddr("192.0.2.1")

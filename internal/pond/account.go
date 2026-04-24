@@ -90,6 +90,18 @@ func generateToken() ([]byte, error) {
 	return token, nil
 }
 
+func (s *AccountService) createAndSaveSession(userID uuid.UUID, ip netip.Addr) ([]byte, error) {
+	token, err := generateToken()
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now()
+	if err := s.sessions.Save(Session{Token: token, UserID: userID, IP: ip, CreatedAt: now, ExpiresAt: now.Add(sessionDuration)}); err != nil {
+		return nil, err
+	}
+	return token, nil
+}
+
 func (s *AccountService) Authenticate(username, password string, ip netip.Addr) ([]byte, error) {
 	user, err := s.users.FindByUsername(username)
 	if errors.Is(err, ErrUserNotFound) {
@@ -106,15 +118,7 @@ func (s *AccountService) Authenticate(username, password string, ip netip.Addr) 
 	if subtle.ConstantTimeCompare(hash, cred.Hash) != 1 {
 		return nil, ErrInvalidCredentials
 	}
-	token, err := generateToken()
-	if err != nil {
-		return nil, err
-	}
-	now := time.Now()
-	if err := s.sessions.Save(Session{Token: token, UserID: user.ID, IP: ip, CreatedAt: now, ExpiresAt: now.Add(sessionDuration)}); err != nil {
-		return nil, err
-	}
-	return token, nil
+	return s.createAndSaveSession(user.ID, ip)
 }
 
 func (s *AccountService) CreateAccount(username, password string, ip netip.Addr) ([]byte, error) {
@@ -140,13 +144,5 @@ func (s *AccountService) CreateAccount(username, password string, ip netip.Addr)
 	if err := s.credentials.Save(Credential{UserID: id, Hash: hash, Salt: salt}); err != nil {
 		return nil, err
 	}
-	token, err := generateToken()
-	if err != nil {
-		return nil, err
-	}
-	now := time.Now()
-	if err := s.sessions.Save(Session{Token: token, UserID: id, IP: ip, CreatedAt: now, ExpiresAt: now.Add(sessionDuration)}); err != nil {
-		return nil, err
-	}
-	return token, nil
+	return s.createAndSaveSession(id, ip)
 }
