@@ -2,6 +2,7 @@ package pond
 
 import (
 	"crypto/rand"
+	"crypto/subtle"
 	"errors"
 	"net/netip"
 	"time"
@@ -89,10 +90,15 @@ func (s *AccountService) Authenticate(username, password string, ip netip.Addr) 
 	if err != nil {
 		return nil, err
 	}
-	if _, err := s.credentials.FindByUserID(user.ID); err != nil {
+	cred, err := s.credentials.FindByUserID(user.ID)
+	if err != nil {
 		return nil, err
 	}
-	return nil, nil
+	hash := HashPassword(password, cred.Salt)
+	if subtle.ConstantTimeCompare(hash, cred.Hash) != 1 {
+		return nil, ErrInvalidCredentials
+	}
+	return []byte{1}, nil
 }
 
 func (s *AccountService) CreateAccount(username, password string, ip netip.Addr) ([]byte, error) {

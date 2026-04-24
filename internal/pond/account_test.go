@@ -358,6 +358,39 @@ func TestAccountService_Authenticate_KnownUser_CallsFindByUserID(t *testing.T) {
 	}
 }
 
+func TestAccountService_Authenticate_WrongPassword_ReturnsErrInvalidCredentials(t *testing.T) {
+	salt := []byte("saltsaltsaltsalt")
+	hash := pond.HashPassword("correct-password", salt)
+	userID := uuid.MustParse("01960000-0000-7000-8000-000000000001")
+	users := &mockUsers{foundUser: pond.User{ID: userID, Username: "alice"}}
+	creds := &mockCredentials{foundCredential: pond.Credential{UserID: userID, Hash: hash, Salt: salt}}
+	s := pond.NewAccountService(users, creds, nil)
+
+	_, err := s.Authenticate("alice", "wrong-password", netip.Addr{})
+
+	if !errors.Is(err, pond.ErrInvalidCredentials) {
+		t.Errorf("expected ErrInvalidCredentials for wrong password, got %v", err)
+	}
+}
+
+func TestAccountService_Authenticate_CorrectPassword_DoesNotReturnErrInvalidCredentials(t *testing.T) {
+	salt := []byte("saltsaltsaltsalt")
+	hash := pond.HashPassword("secret", salt)
+	userID := uuid.MustParse("01960000-0000-7000-8000-000000000001")
+	users := &mockUsers{foundUser: pond.User{ID: userID, Username: "alice"}}
+	creds := &mockCredentials{foundCredential: pond.Credential{UserID: userID, Hash: hash, Salt: salt}}
+	s := pond.NewAccountService(users, creds, &mockSessions{})
+
+	token, err := s.Authenticate("alice", "secret", netip.Addr{})
+
+	if err != nil {
+		t.Fatalf("expected no error for correct password, got %v", err)
+	}
+	if len(token) == 0 {
+		t.Error("expected non-empty session token for correct credentials")
+	}
+}
+
 func TestAccountService_CreateAccount_SavesSessionWithGeneratedToken(t *testing.T) {
 	users := &mockUsers{exists: false}
 	credentials := &mockCredentials{}
